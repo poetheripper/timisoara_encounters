@@ -1,8 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 
-type AccountType = 'user' | 'artist' | 'provider';
+type AccountType = 'user' | 'artist' | 'venue';
 
 const ROLES: { id: AccountType; label: string; description: string }[] = [
   {
@@ -16,8 +25,8 @@ const ROLES: { id: AccountType; label: string; description: string }[] = [
     description: 'Showcase your portfolio, manage gigs, and connect with fans',
   },
   {
-    id: 'provider',
-    label: 'Provider',
+    id: 'venue',
+    label: 'Venue',
     description: 'Offer venues, equipment, or services to artists and users',
   },
 ];
@@ -29,58 +38,66 @@ export default function RoleLoginCard() {
   const returnTo = encodeURIComponent(`/onboarding?role=${selectedRole}`);
 
   return (
-    <div className="w-full flex flex-col items-center gap-4">
-      <div className="text-center">
-        <h1 className="text-[18px] font-bold text-gray-900 tracking-tight">
-          Welcome
-        </h1>
-        <p className="text-[13px] text-gray-400 mt-1">
-          Choose your account type to continue
-        </p>
-      </div>
+    <Dialog defaultOpen={true}>
+      <DialogContent className="sm:max-w-[380px] rounded-[28px] p-8">
+        <DialogHeader className="text-center sm:text-center">
+          <DialogTitle className="text-xl font-bold tracking-tight">
+            Welcome!
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Choose your account type to continue
+          </DialogDescription>
+        </DialogHeader>
 
-      {/* 3-Option Segmented Selector */}
-      <div className="grid grid-cols-3 gap-1.5 w-full bg-gray-100 p-1 rounded-xl">
-        {ROLES.map((role) => {
-          const isSelected = selectedRole === role.id;
-          return (
-            <button
-              key={role.id}
-              type="button"
-              onClick={() => setSelectedRole(role.id)}
-              className={`py-2 px-2 rounded-lg text-[13px] font-medium transition-all ${
-                isSelected
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              {role.label}
-            </button>
-          );
-        })}
-      </div>
+        <div className="flex flex-col items-center gap-4 mt-2">
+          {/* shadcn 3-Option Segmented Selector */}
+          <Tabs
+            value={selectedRole}
+            onValueChange={(val) => setSelectedRole(val as AccountType)}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-3 rounded-xl">
+              {ROLES.map((role) => (
+                <TabsTrigger key={role.id} value={role.id} className="rounded-lg">
+                  {role.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
 
-      {/* Dynamic Role Description */}
-      <p className="text-[12px] text-gray-500 text-center min-h-[34px] px-2">
-        {activeRole.description}
-      </p>
+          {/* Dynamic Description */}
+          <p className="text-xs text-muted-foreground text-center min-h-[32px] px-2">
+            {activeRole.description}
+          </p>
 
-      {/* Sign Up & Log In Buttons carrying the chosen role */}
-      <div className="w-full flex flex-col gap-2.5 mt-1">
-        <a
-          href={`/auth/login?screen_hint=signup&returnTo=${returnTo}`}
-          className="w-full py-2.5 px-4 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-[14px] font-medium text-center transition-colors"
-        >
-          Sign up as {activeRole.label}
-        </a>
+          {/* shadcn Buttons */}
+        <div className="w-full flex flex-col gap-2.5">
+            <Button
+              render={<a href={`/auth/login?screen_hint=signup&returnTo=${returnTo}`} />}
+              className="w-full rounded-xl h-11">
+            Sign up as {activeRole.label}
+          </Button>
 
-        <a
-          href={`/auth/login?returnTo=${returnTo}`}
-          className="w-full py-2.5 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 text-[14px] font-medium text-center transition-colors"
-        >
-          Log in as {activeRole.label}
-        </a>
-      </div>
-    </div>
+          <Button
+              variant="outline"
+              render={<a href={`/auth/login?returnTo=${returnTo}`} />}
+              className="w-full rounded-xl h-11">
+               Log in as {activeRole.label}
+          </Button>
+        </div>
+
+          {/* Powered by Auth0 footer inside the pop-up */}
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-2">
+            <span>Powered by</span>
+            <img
+              src="https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-onlight.svg"
+              alt="Auth0"
+              className="h-3 opacity-50"
+            />
+          </div>
+
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

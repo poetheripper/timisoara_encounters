@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import LogoutButton from "@/components/LogoutButton";
 
 async function ProviderDashboardContent() {
-  const provider = await requireRole(["provider"]);
+  const provider = await requireRole(["venue"]);
 
   return (
     <main className="p-8 max-w-4xl mx-auto">

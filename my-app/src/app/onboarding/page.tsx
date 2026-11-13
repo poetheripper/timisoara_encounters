@@ -3,8 +3,8 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth0 } from "@/lib/auth0";
 
-type AccountType = "user" | "artist" | "provider";
-const VALID_ROLES: AccountType[] = ["user", "artist", "provider"];
+type AccountType = "user" | "artist" | "venue";
+const VALID_ROLES: AccountType[] = ["user", "artist", "venue"];
 
 async function OnboardingHandler({
   searchParams,
