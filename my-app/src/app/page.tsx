@@ -8,19 +8,30 @@ async function AuthSection() {
   const session = await auth0.getSession();
   const user = session?.user;
 
-  if (!user) {
-    return <LoginButton />;
+  if (user) {
+    return (
+      <>
+        <h1 className="text-[17px] font-bold text-gray-900 tracking-tight">Your account</h1>
+        <div className="w-full h-px bg-gray-100" />
+        <Profile />
+        <LogoutButton />
+      </>
+    );
   }
 
   return (
     <>
-      <Profile/>
-      <LogoutButton />
+      <h1 className="text-[17px] font-bold text-gray-900 tracking-tight">Welcome to Sample0</h1>
+      <p className="text-[13px] text-gray-400 text-center leading-relaxed -mt-2">
+        Get started by logging in to your account
+      </p>
+      <div className="h-3" />
+      <LoginButton />
     </>
   );
 }
 
-export default async function Home() {
+export default function Home() {
   return (
     <main className="min-h-screen bg-[#efefef] flex flex-col items-center justify-center gap-4 px-6 py-12">
       <div className="bg-white rounded-[28px] shadow-[0_4px_32px_rgba(0,0,0,0.08)] px-12 py-14 flex flex-col items-center gap-4 w-[360px]">
@@ -53,6 +64,10 @@ export default async function Home() {
             </linearGradient>
           </defs>
         </svg>
+
+        <Suspense fallback={<p className="text-[13px] text-gray-400">Loading...</p>}>
+          <AuthSection />
+        </Suspense>
       </div>
 
       <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
