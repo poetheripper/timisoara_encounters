@@ -131,8 +131,8 @@ export default function FeaturedCarousel() {
             src="/laying_cat_blinking.png"
             alt=""
             aria-hidden
-            width={704}
-            height={331}
+            width={712}
+            height={336}
             unoptimized
             className={`pointer-events-none absolute top-0 z-10 h-auto w-[calc(var(--w)*0.45)] max-w-none -translate-y-[48%] transition-opacity dark:invert ${
               catVisible ? "opacity-100 duration-500" : "opacity-0 duration-150"
@@ -147,10 +147,10 @@ export default function FeaturedCarousel() {
             src="/laying_cat_blinking.png"
             alt=""
             aria-hidden
-            width={704}
-            height={331}
+            width={712}
+            height={336}
             unoptimized
-            className={`pointer-events-none absolute top-0 z-10 h-auto w-[calc(var(--w)*0.45)] max-w-none -translate-y-[48%] transition-opacity dark:invert ${
+            className={`pointer-events-none absolute top-0 z-10 h-auto w-[calc(var(--w)*0.45)] max-w-none -translate-y-[48%] transition-opacity ${
               catVisible ? "opacity-100 duration-500" : "opacity-0 duration-150"
             }`}
             style={{
