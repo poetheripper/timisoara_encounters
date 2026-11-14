@@ -7,4 +7,4 @@ export const createClient = () =>
   createBrowserClient(
     supabaseUrl!,
     supabaseKey!,
-  );
+); 

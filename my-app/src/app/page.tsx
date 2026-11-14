@@ -28,7 +28,7 @@ async function OnboardingHandler({
     .from("users")
     .select("role")
     .eq("id", session.user.sub)
-    .single();
+    .maybeSingle();
 
   if (selectError) {
     console.error("Supabase select error:", selectError.message);
