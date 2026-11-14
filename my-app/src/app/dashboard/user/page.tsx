@@ -8,7 +8,7 @@ async function UserDashboardContent() {
 
   const supabase = createClient();
   const [profileResult, savedResult] = await Promise.all([
-    supabase.from("users").select("name, interests").eq("id", user.sub).maybeSingle(),
+    supabase.from("users").select("name, interests, username, bio, avatar_url, cover_url").eq("id", user.sub).maybeSingle(),
     supabase.from("saved_events").select("event_id").eq("user_id", user.sub),
   ]);
 
@@ -20,6 +20,10 @@ async function UserDashboardContent() {
     // The name saved in the dashboard wins over the one that came from the login.
     name: profileResult.data?.name || user.name || "",
     email: user.email ?? "",
+    username: profileResult.data?.username ?? "",
+    bio: profileResult.data?.bio ?? "",
+    avatarUrl: profileResult.data?.avatar_url ?? null,
+    coverUrl: profileResult.data?.cover_url ?? null,
     interests: profileResult.data?.interests ?? [],
     savedEventIds: (savedResult.data ?? []).map((row) => row.event_id),
   };

@@ -1,16 +1,36 @@
 "use client";
 
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
-import { saveInterests, saveName } from "@/app/dashboard/user/actions";
+import { CameraIcon, Trash2Icon } from "lucide-react";
+import {
+  removeProfileImage,
+  saveInterests,
+  saveProfile,
+  uploadProfileImage,
+  type ProfileText,
+} from "@/app/dashboard/user/actions";
 import { EventFilterChips, FilterChip } from "@/components/EventSearchControls";
 import SaveEventButton, { useSavedEvents } from "@/components/SaveEventButton";
 import { EVENTS, eventBackground, searchEvents, type EventItem, type TimeFilterId } from "@/lib/events";
-import { INTERESTS, NAME_MAX, nameProblem } from "@/lib/profile";
+import {
+  BIO_MAX,
+  IMAGE_MAX_BYTES,
+  INTERESTS,
+  NAME_MAX,
+  USERNAME_MAX,
+  nameProblem,
+  usernameProblem,
+  type ImageKind,
+} from "@/lib/profile";
 import { ACCENT_FILL_CLASS } from "@/lib/styles";
 
 export type UserProfile = {
   name: string;
   email: string;
+  username: string;
+  bio: string;
+  avatarUrl: string | null;
+  coverUrl: string | null;
   interests: string[];
   savedEventIds: string[];
 };
@@ -37,28 +57,198 @@ function ErrorText({ children }: { children: ReactNode }) {
   );
 }
 
+function initials(name: string, email: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0] ?? email).slice(0, 2).toUpperCase() || "?";
+}
+
+// Largest size each picture is stored at. The avatar is cropped to a centered square.
+const IMAGE_SIZE: Record<ImageKind, { width: number; height: number; crop: boolean }> = {
+  avatar: { width: 512, height: 512, crop: true },
+  cover: { width: 1600, height: 900, crop: false },
+};
+
+/** Shrinks a picked image in the browser to a JPEG small enough to upload. */
+async function prepareImage(file: File, kind: ImageKind): Promise<Blob> {
+  const { width: maxW, height: maxH, crop } = IMAGE_SIZE[kind];
+  const bitmap = await createImageBitmap(file);
+
+  // Source rectangle: the whole image, or its centered square for the avatar.
+  const side = Math.min(bitmap.width, bitmap.height);
+  const sw = crop ? side : bitmap.width;
+  const sh = crop ? side : bitmap.height;
+  const sx = (bitmap.width - sw) / 2;
+  const sy = (bitmap.height - sh) / 2;
+
+  const scale = Math.min(1, maxW / sw, maxH / sh);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sw * scale));
+  canvas.height = Math.max(1, Math.round(sh * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas is not available");
+  // JPEG has no transparency; without this, transparent areas would turn black.
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+
+  // Lower the quality step by step until the file fits the upload limit.
+  for (const quality of [0.85, 0.7, 0.55, 0.4]) {
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", quality),
+    );
+    if (blob && blob.size <= IMAGE_MAX_BYTES) return blob;
+  }
+  throw new Error("Image is too large");
+}
+
+/** State and actions for one profile picture (avatar or cover). */
+function useProfileImage(kind: ImageKind, initialUrl: string | null) {
+  const [url, setUrl] = useState(initialUrl);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const upload = (file: File | undefined) => {
+    if (!file) return;
+    setError(null);
+    startTransition(async () => {
+      let blob: Blob;
+      try {
+        blob = await prepareImage(file, kind);
+      } catch {
+        setError("That picture can't be used. Try a JPEG or PNG image.");
+        return;
+      }
+      const formData = new FormData();
+      formData.set("kind", kind);
+      formData.set("file", blob, `${kind}.jpg`);
+      const result = await uploadProfileImage(formData);
+      if (result.ok) setUrl(result.url);
+      else setError(result.error);
+    });
+  };
+
+  const remove = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await removeProfileImage(kind);
+      if (result.ok) setUrl(null);
+      else setError(result.error);
+    });
+  };
+
+  return { url, error, pending, upload, remove };
+}
+
+// These buttons sit on top of a picture, so they keep the same look in both themes.
+const ON_IMAGE_BUTTON_CLASS =
+  "flex cursor-pointer items-center justify-center rounded-full bg-white/85 text-black shadow backdrop-blur transition hover:bg-white focus-within:ring-2 focus-within:ring-ring";
+
+/** Camera button that opens the file picker. The <label> makes the hidden input clickable. */
+function PickImageButton({
+  label,
+  disabled,
+  onPick,
+  className = "",
+}: {
+  label: string;
+  disabled: boolean;
+  onPick: (file: File | undefined) => void;
+  className?: string;
+}) {
+  return (
+    <label
+      title={label}
+      className={`${ON_IMAGE_BUTTON_CLASS} ${disabled ? "pointer-events-none opacity-60" : ""} ${className}`}
+    >
+      <CameraIcon className="size-4" aria-hidden />
+      <span className="sr-only">{label}</span>
+      <input
+        type="file"
+        accept="image/*"
+        disabled={disabled}
+        className="sr-only"
+        onChange={(e) => {
+          onPick(e.target.files?.[0]);
+          // Lets the same file be picked again after a failed upload.
+          e.target.value = "";
+        }}
+      />
+    </label>
+  );
+}
+
+function RemoveImageButton({
+  label,
+  disabled,
+  onClick,
+  className = "",
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`${ON_IMAGE_BUTTON_CLASS} disabled:pointer-events-none disabled:opacity-60 ${className}`}
+    >
+      <Trash2Icon className="size-4" />
+    </button>
+  );
+}
+
+const FIELD_CLASS =
+  "mt-1 w-full border border-border bg-background px-4 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring";
+
 function ProfileSection({ profile }: { profile: UserProfile }) {
-  const [name, setName] = useState(profile.name);
-  const [savedName, setSavedName] = useState(profile.name);
+  const avatar = useProfileImage("avatar", profile.avatarUrl);
+  const cover = useProfileImage("cover", profile.coverUrl);
+
+  const [form, setForm] = useState<ProfileText>({
+    name: profile.name,
+    username: profile.username,
+    bio: profile.bio,
+  });
+  const [saved, setSaved] = useState(form);
   const [error, setError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const trimmed = name.trim();
-  const unchanged = trimmed === savedName;
+  const trimmed: ProfileText = {
+    name: form.name.trim(),
+    username: form.username.trim(),
+    bio: form.bio.trim(),
+  };
+  const unchanged =
+    trimmed.name === saved.name && trimmed.username === saved.username && trimmed.bio === saved.bio;
+
+  const setField = (field: keyof ProfileText, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setError(null);
+    setJustSaved(false);
+  };
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const problem = nameProblem(trimmed);
+    const problem =
+      nameProblem(trimmed.name) ??
+      (trimmed.username === "" ? null : usernameProblem(trimmed.username));
     if (problem) {
       setError(problem);
       return;
     }
     setError(null);
     startTransition(async () => {
-      const result = await saveName(trimmed);
+      const result = await saveProfile(trimmed);
       if (result.ok) {
-        setSavedName(trimmed);
+        setSaved(trimmed);
         setJustSaved(true);
       } else {
         setError(result.error);
@@ -68,39 +258,132 @@ function ProfileSection({ profile }: { profile: UserProfile }) {
 
   return (
     <Section title="Profile">
-      <form onSubmit={onSubmit}>
-        <label htmlFor="profile-name" className="text-sm text-muted-foreground">
-          Name
-        </label>
-        <div className="mt-1 flex flex-wrap gap-2">
-          <input
-            id="profile-name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setError(null);
-              setJustSaved(false);
-            }}
-            maxLength={NAME_MAX}
-            autoComplete="name"
-            placeholder="Your name"
-            aria-invalid={error !== null}
-            className="h-11 min-w-0 flex-1 rounded-full border border-border bg-background px-4 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+      {/* Cover picture, with the profile picture overlapping its bottom edge. */}
+      <div className="relative mb-14">
+        <div className="relative h-36 overflow-hidden rounded-2xl bg-muted sm:h-48">
+          {cover.url && (
+            // eslint-disable-next-line @next/next/no-img-element -- user upload, already resized
+            <img src={cover.url} alt="Cover picture" className="size-full object-cover" />
+          )}
+          <div className="absolute top-3 right-3 flex gap-2">
+            {cover.url && (
+              <RemoveImageButton
+                label="Remove cover picture"
+                disabled={cover.pending}
+                onClick={cover.remove}
+                className="size-9"
+              />
+            )}
+            <PickImageButton
+              label={cover.url ? "Change cover picture" : "Add cover picture"}
+              disabled={cover.pending}
+              onPick={cover.upload}
+              className="size-9"
+            />
+          </div>
+        </div>
+
+        <div className="absolute -bottom-12 left-5">
+          <div className="flex size-24 items-center justify-center overflow-hidden rounded-full border-4 border-card bg-muted text-2xl font-semibold text-muted-foreground">
+            {avatar.url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- user upload, already resized
+              <img src={avatar.url} alt="Profile picture" className="size-full object-cover" />
+            ) : (
+              <span aria-hidden>{initials(saved.name, profile.email)}</span>
+            )}
+          </div>
+          <PickImageButton
+            label={avatar.url ? "Change profile picture" : "Add profile picture"}
+            disabled={avatar.pending}
+            onPick={avatar.upload}
+            className="absolute right-0 bottom-0 size-8"
           />
+          {avatar.url && (
+            <RemoveImageButton
+              label="Remove profile picture"
+              disabled={avatar.pending}
+              onClick={avatar.remove}
+              className="absolute bottom-0 left-0 size-8"
+            />
+          )}
+        </div>
+      </div>
+
+      {(cover.pending || avatar.pending) && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Updating picture…
+        </p>
+      )}
+      {cover.error && <ErrorText>{cover.error}</ErrorText>}
+      {avatar.error && <ErrorText>{avatar.error}</ErrorText>}
+
+      <form onSubmit={onSubmit} className="mt-4 space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="profile-name" className="text-sm text-muted-foreground">
+              Name
+            </label>
+            <input
+              id="profile-name"
+              value={form.name}
+              onChange={(e) => setField("name", e.target.value)}
+              maxLength={NAME_MAX}
+              autoComplete="name"
+              placeholder="Your name"
+              className={`${FIELD_CLASS} h-11 rounded-full`}
+            />
+          </div>
+          <div>
+            <label htmlFor="profile-username" className="text-sm text-muted-foreground">
+              Username
+            </label>
+            <input
+              id="profile-username"
+              value={form.username}
+              onChange={(e) => setField("username", e.target.value)}
+              maxLength={USERNAME_MAX}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="Choose a unique username"
+              className={`${FIELD_CLASS} h-11 rounded-full`}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="profile-bio" className="text-sm text-muted-foreground">
+            Description
+          </label>
+          <textarea
+            id="profile-bio"
+            value={form.bio}
+            onChange={(e) => setField("bio", e.target.value)}
+            maxLength={BIO_MAX}
+            rows={3}
+            placeholder="Tell others a little about yourself"
+            className={`${FIELD_CLASS} resize-y rounded-2xl py-3`}
+          />
+          <p className="mt-1 text-right text-xs text-muted-foreground">
+            {form.bio.length}/{BIO_MAX}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            disabled={pending || unchanged || trimmed === ""}
+            disabled={pending || unchanged}
             className={`h-11 rounded-full px-5 text-sm font-medium transition disabled:opacity-50 ${ACCENT_FILL_CLASS}`}
           >
-            {pending ? "Saving…" : "Save"}
+            {pending ? "Saving…" : "Save profile"}
           </button>
+          {justSaved && !error && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Profile saved.
+            </p>
+          )}
         </div>
         {error && <ErrorText>{error}</ErrorText>}
-        {justSaved && !error && (
-          <p role="status" className="mt-2 text-sm text-muted-foreground">
-            Name saved.
-          </p>
-        )}
       </form>
 
       <dl className="mt-5 text-sm">
