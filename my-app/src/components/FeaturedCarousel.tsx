@@ -11,12 +11,20 @@ const SLIDES = EVENTS;
 
 const AUTOPLAY_MS = 5000;
 const SWIPE_THRESHOLD_PX = 40;
+
 // The cat lies on the top edge of the centered card and leaves as soon as the carousel moves.
 // It never comes back on the very next card: it returns once you are at least
 // CAT_MIN_CARDS_AWAY cards further (after that card has settled), or after a long idle.
 const CAT_MIN_CARDS_AWAY = 2;
 const CAT_SETTLE_MS = 1200;
 const CAT_IDLE_RETURN_MS = 12000;
+
+// Placeholder for real images: hues spread by the golden angle so neighbours never look alike.
+// Derived from the index (not Math.random) so server and client render the same color.
+function placeholderColor(index: number) {
+  const hue = Math.round((index * 137.508 + 20) % 360);
+  return `linear-gradient(135deg, hsl(${hue} 70% 45%), hsl(${(hue + 40) % 360} 75% 30%))`;
+}
 
 export default function FeaturedCarousel() {
   const [active, setActive] = useState(0);
@@ -25,6 +33,14 @@ export default function FeaturedCarousel() {
   // Total number of card changes so far, and where/when the cat last lay down.
   const [moves, setMoves] = useState(0);
   const [cat, setCat] = useState({ slide: 0, atMove: 0 });
+  
+  useEffect(() => {
+    if (cat.atMove === moves) return;
+    const delay = moves - cat.atMove >= CAT_MIN_CARDS_AWAY ? CAT_SETTLE_MS : CAT_IDLE_RETURN_MS;
+    const id = setTimeout(() => setCat({ slide: active, atMove: moves }), delay);
+    return () => clearTimeout(id);
+  }, [moves, active, cat.atMove]);
+  // Total number of card changes so far, and where/when the cat last lay down.
   // Any card change after the cat lay down makes it leave.
   // (Later: this is the moment to play the falling-cat animation instead of just fading out.)
   const catVisible = cat.atMove === moves;
@@ -43,7 +59,7 @@ export default function FeaturedCarousel() {
     setActive(next);
     setMoves((m) => m + 1);
   };
-
+  
   useEffect(() => {
     if (!playing) return;
     const id = setInterval(() => {
@@ -57,11 +73,8 @@ export default function FeaturedCarousel() {
     <section
       aria-roledescription="carousel"
       aria-label="Featured"
-<<<<<<< Updated upstream
       className="w-full overflow-hidden py-30 pb-14 [--gap:1.25rem] [--w:min(38rem,72vw)] sm:[--gap:4rem]"
-=======
-      className="w-full overflow-hidden pt-24 pb-14 [--gap:1.25rem] [--w:min(38rem,72vw)] sm:[--gap:4rem]"
->>>>>>> Stashed changes
+
       onKeyDown={(e) => {
         if (e.key === "ArrowLeft") go(active - 1);
         if (e.key === "ArrowRight") go(active + 1);
@@ -116,6 +129,22 @@ export default function FeaturedCarousel() {
               </div>
             );
           })}
+
+          {/* Cat lying on the top edge of its card: the body rests on the edge, legs and tail hang over the card. */}
+          <Image
+            src="/laying_cat_blinking.png"
+            alt=""
+            aria-hidden
+            width={704}
+            height={331}
+            unoptimized
+            className={`pointer-events-none absolute top-0 z-10 h-auto w-[calc(var(--w)*0.45)] max-w-none -translate-y-[48%] transition-opacity dark:invert ${
+              catVisible ? "opacity-100 duration-500" : "opacity-0 duration-150"
+            }`}
+            style={{
+              left: `calc(${cat.slide} * (var(--w) + var(--gap)) + var(--w) * 0.5)`,
+            }}
+          />
 
           {/* Cat lying on the top edge of its card: the body rests on the edge, legs and tail hang over the card. */}
           <Image
