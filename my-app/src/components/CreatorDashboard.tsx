@@ -1,12 +1,17 @@
+import Link from "next/link";
 import ContactSection from "@/components/ContactSection";
 import { ProfileSection } from "@/components/UserDashboard";
+import VenuePostsSection from "@/components/VenuePostsSection";
+import { profileHref } from "@/lib/accounts";
 import { requireRole, type AccountType } from "@/lib/auth-helpers";
 import { storedContactLinks } from "@/lib/contact";
+import { loadVenuePosts } from "@/lib/venue-posts-data";
 import { createClient } from "@/utils/supabase/server";
 
 /**
  * Dashboard shared by artist and venue accounts: the same profile editor as the user
- * dashboard, plus the contact links. Sends other roles to their own dashboard.
+ * dashboard, plus the contact links. Venues also manage their open calls and events.
+ * Sends other roles to their own dashboard.
  */
 export default async function CreatorDashboard({
   role,
@@ -18,14 +23,18 @@ export default async function CreatorDashboard({
   const account = await requireRole([role]);
 
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("users")
-    .select("name, username, bio, avatar_url, cover_url, contact_links")
-    .eq("id", account.sub)
-    .maybeSingle();
+  const [{ data, error: profileError }, venuePosts] = await Promise.all([
+    supabase
+      .from("users")
+      .select("name, username, bio, avatar_url, cover_url, contact_links")
+      .eq("id", account.sub)
+      .maybeSingle(),
+    role === "venue" ? loadVenuePosts(account.sub) : null,
+  ]);
+  const error = profileError || venuePosts?.error;
 
   // Fails until the SQL files in supabase/ have been run; the dashboard then says so.
-  if (error) console.error(`${role} dashboard profile error:`, error.message);
+  if (profileError) console.error(`${role} dashboard profile error:`, profileError.message);
 
   // The name saved in the dashboard wins over the one that came from the login.
   const name = data?.name || account.name || "";
@@ -34,6 +43,12 @@ export default async function CreatorDashboard({
     <main className="p-8 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold">{title}</h1>
       <p className="text-muted-foreground mt-1">Welcome, {name || account.email}</p>
+      <Link
+        href={profileHref(data?.username || account.sub)}
+        className="mt-2 inline-block text-sm underline underline-offset-4 hover:text-muted-foreground"
+      >
+        View your public profile
+      </Link>
 
       <div className="mt-8 space-y-6">
         {error && (
@@ -41,9 +56,10 @@ export default async function CreatorDashboard({
             role="alert"
             className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-foreground"
           >
-            Your profile can&apos;t be loaded or saved yet: the database is missing some columns. Run{" "}
-            <code className="rounded bg-muted px-1 py-0.5">supabase/user_dashboard.sql</code> and{" "}
-            <code className="rounded bg-muted px-1 py-0.5">supabase/contact_links.sql</code> in the
+            Your profile can&apos;t be loaded or saved yet: the database is missing some columns or
+            tables. Run <code className="rounded bg-muted px-1 py-0.5">supabase/user_dashboard.sql</code>,{" "}
+            <code className="rounded bg-muted px-1 py-0.5">supabase/contact_links.sql</code> and{" "}
+            <code className="rounded bg-muted px-1 py-0.5">supabase/venue_posts.sql</code> in the
             Supabase SQL editor, then reload this page.
           </p>
         )}
@@ -58,6 +74,18 @@ export default async function CreatorDashboard({
           }}
         />
         <ContactSection initial={storedContactLinks(data?.contact_links)} />
+        {venuePosts && (
+          <>
+            <VenuePostsSection
+              kind="open_call"
+              initial={venuePosts.posts.filter((post) => post.kind === "open_call")}
+            />
+            <VenuePostsSection
+              kind="event"
+              initial={venuePosts.posts.filter((post) => post.kind === "event")}
+            />
+          </>
+        )}
       </div>
     </main>
   );

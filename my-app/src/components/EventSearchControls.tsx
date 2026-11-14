@@ -1,7 +1,13 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import { SearchIcon } from "lucide-react";
+import AccountSuggestions, {
+  suggestionId,
+  useAccountSuggestions,
+} from "@/components/AccountSuggestions";
+import { profileHref } from "@/lib/accounts";
 import {
   CATEGORIES,
   TIME_FILTERS,
@@ -138,11 +144,52 @@ export function EventFilterChips({
   );
 }
 
-/** The search bar plus the category and date filter chips. */
-export default function EventSearchControls({ search }: { search: EventSearchState }) {
+/**
+ * The search bar plus the category and date filter chips.
+ * With `suggestAccounts`, matching artists and venues are listed under the bar while typing;
+ * picking one opens its profile. Pressing Enter without picking one searches events as before.
+ */
+export default function EventSearchControls({
+  search,
+  suggestAccounts = false,
+}: {
+  search: EventSearchState;
+  suggestAccounts?: boolean;
+}) {
+  const router = useRouter();
+  const [focused, setFocused] = useState(false);
+  // Closed with Escape (or by searching events) until the text changes again.
+  const [dismissed, setDismissed] = useState(false);
+  const [picked, setPicked] = useState(-1);
+
+  const suggestions = useAccountSuggestions(search.input, suggestAccounts);
+  const open = focused && !dismissed && (suggestions.accounts.length > 0 || suggestions.noMatches);
+  // The list can shrink while a row is picked.
+  const highlighted = open && picked < suggestions.accounts.length ? picked : -1;
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
+    if (highlighted >= 0) {
+      router.push(profileHref(suggestions.accounts[highlighted].handle));
+      return;
+    }
+    setDismissed(true);
     search.submit();
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!open) return;
+    const count = suggestions.accounts.length;
+    if (e.key === "ArrowDown" && count > 0) {
+      e.preventDefault();
+      setPicked(highlighted + 1 >= count ? 0 : highlighted + 1);
+    } else if (e.key === "ArrowUp" && count > 0) {
+      e.preventDefault();
+      setPicked(highlighted <= 0 ? count - 1 : highlighted - 1);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setDismissed(true);
+    }
   };
 
   return (
@@ -155,12 +202,32 @@ export default function EventSearchControls({ search }: { search: EventSearchSta
         <input
           type="search"
           value={search.input}
-          onChange={(e) => search.setInput(e.target.value)}
+          onChange={(e) => {
+            search.setInput(e.target.value);
+            setDismissed(false);
+            setPicked(-1);
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onKeyDown={onKeyDown}
           placeholder="Search events, artists, venues…"
-          aria-label="Search events"
+          aria-label="Search events, artists and venues"
+          role={suggestAccounts ? "combobox" : undefined}
+          aria-expanded={suggestAccounts ? open : undefined}
+          aria-controls={suggestAccounts ? "account-suggestions" : undefined}
+          aria-activedescendant={highlighted >= 0 ? suggestionId(highlighted) : undefined}
+          aria-autocomplete={suggestAccounts ? "list" : undefined}
+          autoComplete="off"
           enterKeyHint="search"
           className="h-12 w-full rounded-full border border-border bg-background pr-4 pl-12 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
         />
+        {open && (
+          <AccountSuggestions
+            accounts={suggestions.accounts}
+            noMatches={suggestions.noMatches}
+            highlighted={highlighted}
+          />
+        )}
       </form>
 
       <div className="mt-5">
