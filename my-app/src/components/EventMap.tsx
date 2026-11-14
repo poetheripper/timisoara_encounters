@@ -38,6 +38,8 @@ const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? "DEMO_MAP_ID";
 
 const TIMISOARA = { lat: 45.7558, lng: 21.2287 };
 const DEFAULT_ZOOM = 14;
+// The map is about places, so it does not offer the "Artist" category as a filter.
+const MAP_HIDDEN_CATEGORIES = ["Artist"];
 const NO_EVENTS: EventItem[] = [];
 
 // Pin colors per theme, matching the accent purple in src/lib/styles.ts.
@@ -449,7 +451,7 @@ export default function EventMap() {
 
   return (
     <div>
-      <EventSearchControls search={search} />
+      <EventSearchControls search={search} hiddenCategories={MAP_HIDDEN_CATEGORIES} />
 
       {/* Route options: pick a travel mode to connect the events on the map, optionally within a time limit. */}
       <div className="mt-3 space-y-3">

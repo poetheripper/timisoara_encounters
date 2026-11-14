@@ -89,6 +89,8 @@ export function FilterChip({
   );
 }
 
+const NO_CATEGORIES: readonly string[] = [];
+
 /** The category and date filter chips, with a "Clear filters" link while any is selected. */
 export function EventFilterChips({
   categories,
@@ -96,17 +98,20 @@ export function EventFilterChips({
   onToggleCategory,
   onToggleTime,
   onClear,
+  hiddenCategories = NO_CATEGORIES,
 }: {
   categories: string[];
   times: TimeFilterId[];
   onToggleCategory: (category: string) => void;
   onToggleTime: (time: TimeFilterId) => void;
   onClear: () => void;
+  /** Categories this page does not offer as a filter chip. */
+  hiddenCategories?: readonly string[];
 }) {
   return (
     <div className="space-y-3">
       <div role="group" aria-label="Filter by category" className="flex flex-wrap justify-center gap-2">
-        {CATEGORIES.map((category) => (
+        {CATEGORIES.filter((category) => !hiddenCategories.includes(category)).map((category) => (
           <FilterChip
             key={category}
             label={category}
@@ -139,7 +144,14 @@ export function EventFilterChips({
 }
 
 /** The search bar plus the category and date filter chips. */
-export default function EventSearchControls({ search }: { search: EventSearchState }) {
+export default function EventSearchControls({
+  search,
+  hiddenCategories,
+}: {
+  search: EventSearchState;
+  /** Categories this page does not offer as a filter chip. */
+  hiddenCategories?: readonly string[];
+}) {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     search.submit();
@@ -170,6 +182,7 @@ export default function EventSearchControls({ search }: { search: EventSearchSta
           onToggleCategory={search.toggleCategory}
           onToggleTime={search.toggleTime}
           onClear={search.clearFilters}
+          hiddenCategories={hiddenCategories}
         />
       </div>
     </div>
