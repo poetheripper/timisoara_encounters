@@ -2,34 +2,14 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, PauseIcon, PlayIcon } from "lucide-react";
+import { EVENTS, eventBackground } from "@/lib/events";
+import { ACCENT_BORDER_CLASS, ACCENT_FILL_CLASS } from "@/lib/styles";
 
-type Slide = {
-  tag: string;
-  title: string;
-  subtitle: string;
-  /** Optional CSS color. When missing, a color is generated from the slide's position. */
-  color?: string;
-};
-
-// ✏️ Edit the titles / subtitles / tags here. Add or remove entries freely.
-const SLIDES: Slide[] = [
-  { tag: "Featured", title: "Your title here", subtitle: "A short description of this encounter" },
-  { tag: "Concert", title: "Second title", subtitle: "A short description of this encounter" },
-  { tag: "Exhibition", title: "Third title", subtitle: "A short description of this encounter" },
-  { tag: "Venue", title: "Fourth title", subtitle: "A short description of this encounter" },
-  { tag: "Artist", title: "Fifth title", subtitle: "A short description of this encounter" },
-  { tag: "Workshop", title: "Sixth title", subtitle: "A short description of this encounter" },
-];
+// The slides are the shared events from src/lib/events.ts — edit them there.
+const SLIDES = EVENTS;
 
 const AUTOPLAY_MS = 5000;
 const SWIPE_THRESHOLD_PX = 40;
-
-// Placeholder for real images: hues spread by the golden angle so neighbours never look alike.
-// Derived from the index (not Math.random) so server and client render the same color.
-function placeholderColor(index: number) {
-  const hue = Math.round((index * 137.508 + 20) % 360);
-  return `linear-gradient(135deg, hsl(${hue} 70% 45%), hsl(${(hue + 40) % 360} 75% 30%))`;
-}
 
 export default function FeaturedCarousel() {
   const [active, setActive] = useState(0);
@@ -49,7 +29,7 @@ export default function FeaturedCarousel() {
     <section
       aria-roledescription="carousel"
       aria-label="Featured"
-      className="w-full overflow-hidden py-14 [--gap:1.25rem] [--w:min(38rem,72vw)] sm:[--gap:4rem]"
+      className="w-full overflow-hidden py-30 pb-14 [--gap:1.25rem] [--w:min(38rem,72vw)] sm:[--gap:4rem]"
       onKeyDown={(e) => {
         if (e.key === "ArrowLeft") go(active - 1);
         if (e.key === "ArrowRight") go(active + 1);
@@ -80,7 +60,7 @@ export default function FeaturedCarousel() {
             const isActive = i === active;
             return (
               <div
-                key={i}
+                key={slide.id}
                 role="group"
                 aria-roledescription="slide"
                 aria-label={`${i + 1} of ${count}`}
@@ -89,12 +69,12 @@ export default function FeaturedCarousel() {
                 className={`relative h-[clamp(13rem,30vw,23rem)] w-(--w) shrink-0 overflow-hidden rounded-3xl text-white transition-opacity duration-500 ${
                   isActive ? "" : "cursor-pointer opacity-60"
                 }`}
-                style={{ background: slide.color ?? placeholderColor(i) }}
+                style={{ background: eventBackground(slide) }}
               >
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 text-left sm:p-8">
-                  <span className="inline-block rounded-full bg-yellow-300 px-3 py-1 text-xs font-medium text-black">
-                    {slide.tag}
+                  <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${ACCENT_FILL_CLASS}`}>
+                    {slide.category}
                   </span>
                   <h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-3xl">
                     {slide.title}
@@ -129,7 +109,7 @@ export default function FeaturedCarousel() {
           type="button"
           aria-label={playing ? "Pause slideshow" : "Play slideshow"}
           onClick={() => setPlaying((p) => !p)}
-          className="flex size-11 items-center justify-center rounded-full border-2 border-yellow-400 bg-muted text-foreground transition hover:bg-border"
+          className={`flex size-11 items-center justify-center rounded-full border-2 bg-muted text-foreground transition hover:bg-border ${ACCENT_BORDER_CLASS}`}
         >
           {playing ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />}
         </button>

@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { Menu } from "@base-ui/react/menu";
-import { LogOutIcon, MapIcon, MenuIcon, SearchIcon, SettingsIcon, UserIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { HomeIcon, LogOutIcon, MapIcon, MenuIcon, SearchIcon, SettingsIcon, UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RoleLoginCard from "@/components/RoleLoginCard";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -19,7 +20,7 @@ const MENU_ITEM_CLASS =
 function AccountButton() {
   const { user, isLoading } = useUser();
 
-  // Signed in: the only account action for now is logging out.
+  // Signed in: the icon opens a menu with the profile and logging out.
   if (user) {
     return (
       <Menu.Root>
@@ -31,6 +32,14 @@ function AccountButton() {
         <Menu.Portal>
           <Menu.Positioner side="bottom" align="end" sideOffset={8} className="z-50">
             <Menu.Popup className={MENU_POPUP_CLASS}>
+              {/* /onboarding sends a signed-in account to the dashboard of its role (user, artist or venue). */}
+              <Menu.LinkItem
+                render={<Link href="/onboarding" prefetch={false} />}
+                className={MENU_ITEM_CLASS}
+              >
+                <UserIcon className="size-4" />
+                My profile
+              </Menu.LinkItem>
               {/* Plain <a>: /auth/logout is an Auth0 route and must be a full navigation, never prefetched. */}
               <Menu.LinkItem href="/auth/logout" className={MENU_ITEM_CLASS}>
                 <LogOutIcon className="size-4" />
@@ -63,6 +72,8 @@ function AccountButton() {
 }
 
 export default function SiteHeader() {
+  const isHome = usePathname() === "/";
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
       <div className="flex h-16 w-full items-center justify-between gap-2 px-3 sm:h-20 sm:px-6">
@@ -107,6 +118,20 @@ export default function SiteHeader() {
           <AccountButton />
 
           <ThemeToggle />
+
+          {/* The main page doesn't need a link to itself. */}
+          {!isHome && (
+            <Button
+              nativeButton={false}
+              variant="ghost"
+              size="icon-lg"
+              aria-label="Home"
+              title="Home"
+              render={<Link href="/" />}
+            >
+              <HomeIcon className="size-5 sm:size-6" />
+            </Button>
+          )}
 
           <Menu.Root>
             <Menu.Trigger
