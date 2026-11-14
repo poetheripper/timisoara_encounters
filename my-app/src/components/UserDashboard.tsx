@@ -39,7 +39,7 @@ function toggle<T>(list: T[], value: T) {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+export function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <section className="rounded-3xl border border-border bg-card p-6 text-card-foreground">
       <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
@@ -49,7 +49,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-function ErrorText({ children }: { children: ReactNode }) {
+export function ErrorText({ children }: { children: ReactNode }) {
   return (
     <p role="alert" className="mt-2 text-sm text-destructive">
       {children}
@@ -204,10 +204,16 @@ function RemoveImageButton({
   );
 }
 
-const FIELD_CLASS =
+export const FIELD_CLASS =
   "mt-1 w-full border border-border bg-background px-4 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring";
 
-function ProfileSection({ profile }: { profile: UserProfile }) {
+/** What the profile editor needs. Shared with the artist and venue dashboards. */
+export type EditableProfile = Pick<
+  UserProfile,
+  "name" | "email" | "username" | "bio" | "avatarUrl" | "coverUrl"
+>;
+
+export function ProfileSection({ profile }: { profile: EditableProfile }) {
   const avatar = useProfileImage("avatar", profile.avatarUrl);
   const cover = useProfileImage("cover", profile.coverUrl);
 
