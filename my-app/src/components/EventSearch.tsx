@@ -82,7 +82,7 @@ export default function EventSearch() {
 
   return (
     <div>
-      <EventSearchControls search={search} />
+      <EventSearchControls search={search} suggestAccounts />
 
       {saved.error && (
         <p role="alert" className="mt-6 text-sm text-destructive">
@@ -93,7 +93,7 @@ export default function EventSearch() {
       <div className="mt-10" aria-live="polite">
         {results === null ? (
           <p className="text-muted-foreground">
-            Type something and press Enter, or pick a filter, to see events.
+            Type to find artists and venues. Press Enter, or pick a filter, to see events.
           </p>
         ) : results.length === 0 ? (
           <p className="text-muted-foreground">{searchSummary(search)}</p>
