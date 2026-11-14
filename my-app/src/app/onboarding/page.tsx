@@ -2,6 +2,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth0 } from "@/lib/auth0";
+import { createClient } from "@/utils/supabase/server";
 
 type AccountType = "user" | "artist" | "venue";
 const VALID_ROLES: AccountType[] = ["user", "artist", "venue"];
@@ -21,10 +22,42 @@ async function OnboardingHandler({
     ? (params.role as AccountType)
     : "user";
 
-  // TODO: Save/upsert user in PostgreSQL with `accountType: chosenRole`
-  // e.g., await db.insert(users).values({ id: session.user.sub, email: session.user.email!, accountType: chosenRole }).onConflictDoNothing();
+  const supabase = await createClient();
+  const { data: existingUser, error: selectError } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", session.user.sub)
+    .maybeSingle();
 
-  redirect(`/dashboard/${chosenRole}`);
+  if (selectError) {
+    console.error("Supabase select error:", selectError.message);
+    throw new Error("Unable to load your account role.");
+  }
+
+  let finalRole = chosenRole;
+
+  if (existingUser) {
+    finalRole =
+      existingUser.role === "provider"
+        ? "venue"
+        : VALID_ROLES.includes(existingUser.role as AccountType)
+          ? (existingUser.role as AccountType)
+          : chosenRole;
+  } else {
+    const { error: insertError } = await supabase.from("users").insert({
+      id: session.user.sub,
+      email: session.user.email ?? "",
+      name: session.user.name ?? "",
+      role: chosenRole,
+    });
+
+    if (insertError) {
+      console.error("Supabase insert error:", insertError.message);
+      throw new Error("Unable to save your account role.");
+    }
+  }
+
+  redirect(`/dashboard/${finalRole}`);
   return null;
 }
 

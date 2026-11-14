@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { auth0 } from "@/lib/auth0";
 import { createClient } from "@/utils/supabase/server";
 
-export type AccountType = "user" | "artist" | "provider";
+export type AccountType = "user" | "artist" | "venue";
+
+function isAccountType(role: unknown): role is AccountType {
+  return role === "user" || role === "artist" || role === "venue";
+}
 
 export async function getCurrentUserWithRole() {
   const session = await auth0.getSession();
@@ -36,7 +40,12 @@ export async function getCurrentUserWithRole() {
 
   return {
     ...session.user,
-    role: (dbUser.role as AccountType) || "user",
+    role:
+      dbUser.role === "provider"
+        ? "venue"
+        : isAccountType(dbUser.role)
+          ? dbUser.role
+          : "user",
   };
 }
 

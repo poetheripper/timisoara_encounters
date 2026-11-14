@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogTrigger,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -34,11 +35,18 @@ const ROLES: { id: AccountType; label: string; description: string }[] = [
 export default function RoleLoginCard() {
   const [selectedRole, setSelectedRole] = useState<AccountType>('user');
 
-  const activeRole = ROLES.find((r) => r.id === selectedRole)!;
+  const activeRole = ROLES.find((role) => role.id === selectedRole) ?? ROLES[0];
   const returnTo = encodeURIComponent(`/onboarding?role=${selectedRole}`);
 
   return (
     <Dialog defaultOpen={true}>
+      <DialogTrigger
+        render={
+          <Button variant="outline" className="mt-8 rounded-xl">
+            Log in or sign up
+          </Button>
+        }
+      />
       <DialogContent className="sm:max-w-[380px] rounded-[28px] p-8">
         <DialogHeader className="text-center sm:text-center">
           <DialogTitle className="text-xl font-bold tracking-tight">
@@ -50,7 +58,6 @@ export default function RoleLoginCard() {
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 mt-2">
-          {/* shadcn 3-Option Segmented Selector */}
           <Tabs
             value={selectedRole}
             onValueChange={(val) => setSelectedRole(val as AccountType)}
@@ -65,37 +72,32 @@ export default function RoleLoginCard() {
             </TabsList>
           </Tabs>
 
-          {/* Dynamic Description */}
           <p className="text-xs text-muted-foreground text-center min-h-[32px] px-2">
             {activeRole.description}
           </p>
 
-          {/* shadcn Buttons */}
-        <div className="w-full flex flex-col gap-2.5">
+          <div className="w-full flex flex-col gap-2.5">
             <Button
+              nativeButton={false}
               render={<a href={`/auth/login?screen_hint=signup&returnTo=${returnTo}`} />}
-              className="w-full rounded-xl h-11">
-            Sign up as {activeRole.label}
-          </Button>
+              className="w-full rounded-xl h-11"
+            >
+              Sign up as {activeRole.label}
+            </Button>
 
-          <Button
+            <Button
+              nativeButton={false}
               variant="outline"
               render={<a href={`/auth/login?returnTo=${returnTo}`} />}
-              className="w-full rounded-xl h-11">
-               Log in as {activeRole.label}
-          </Button>
-        </div>
-
-          {/* Powered by Auth0 footer inside the pop-up */}
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-2">
-            <span>Powered by</span>
-            <img
-              src="https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-onlight.svg"
-              alt="Auth0"
-              className="h-3 opacity-50"
-            />
+              className="w-full rounded-xl h-11"
+            >
+              Log in as {activeRole.label}
+            </Button>
           </div>
 
+          <div className="pt-2 text-[11px] text-muted-foreground">
+            Secure sign in powered by Auth0
+          </div>
         </div>
       </DialogContent>
     </Dialog>
