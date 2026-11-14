@@ -150,7 +150,33 @@ export function EventFilterChips({
 }
 
 /** The search bar plus the category and date filter chips. */
-export default function EventSearchControls({ search }: { search: EventSearchState }) {
+export default function EventSearchControls({
+  search,
+  hiddenCategories,
+  suggestAccounts = false,
+}: {
+  search: EventSearchState;
+  /** Categories this page does not offer as a filter chip. */
+  hiddenCategories?: readonly string[];
+  /** Show matching artists and venues under the bar while typing (search page). */
+  suggestAccounts?: boolean;
+}) {
+  const router = useRouter();
+  const suggestions = useAccountSuggestions(search.input, suggestAccounts);
+  const [focused, setFocused] = useState(false);
+  // Closed with Escape or by submitting; typing again reopens the list.
+  const [dismissed, setDismissed] = useState(false);
+  // Row picked with the arrow keys; -1 means none.
+  const [picked, setPicked] = useState(-1);
+
+  const open =
+    suggestAccounts &&
+    focused &&
+    !dismissed &&
+    (suggestions.accounts.length > 0 || suggestions.noMatches);
+  // The list can shrink while a row is picked, so an out-of-range pick counts as none.
+  const highlighted = open && picked < suggestions.accounts.length ? picked : -1;
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (highlighted >= 0) {
