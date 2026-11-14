@@ -15,6 +15,7 @@ import {
   CheckIcon,
   CopyIcon,
   ExternalLinkIcon,
+  LocateFixedIcon,
   MapPinIcon,
   MicIcon,
   StoreIcon,
@@ -72,6 +73,18 @@ type TravelModeId = (typeof TRAVEL_MODES)[number]["id"];
 const TIME_LIMITS_MIN = [15, 30, 60];
 
 type LatLng = { lat: number; lng: number };
+/** A point on the route: an event, or the user's own location as the starting point. */
+type RouteStop = { id: string; title: string; location: string; coordinates: LatLng };
+
+const MY_LOCATION_ID = "my-location";
+
+// Where the browser's location stands: not asked yet, being asked, known, refused / failed, or switched off.
+const NO_STOPS: RouteStop[] = [];
+
+type LocationState =
+  | { status: "idle" | "asking" | "off" }
+  | { status: "failed"; reason: string }
+  | { status: "on"; coordinates: LatLng };
 type RouteLeg = { durationMillis: number | null; distanceMeters: number; path: LatLng[] };
 /** Outcome of one route request; `key` says which stops + travel mode it belongs to. */
 type RouteResult = { key: string; legs: RouteLeg[] | null; fullPath: LatLng[] };
@@ -83,13 +96,16 @@ function squaredDistance(a: LatLng, b: LatLng) {
   return dLat * dLat + dLng * dLng;
 }
 
-/** Visiting order: start at the first event, then always go to the closest one not visited yet. */
-function orderStops(events: EventItem[]) {
-  if (events.length < 3) return events;
-  const remaining = events.slice(1);
-  const ordered = [events[0]];
+/**
+ * Visiting order: always go to the closest event not visited yet.
+ * Starts from `start` (the user's location) when given, otherwise at the first event.
+ */
+function orderStops(events: EventItem[], start: LatLng | null) {
+  if (events.length < (start ? 2 : 3)) return events;
+  const remaining = start ? events.slice() : events.slice(1);
+  const ordered = start ? [] : [events[0]];
   while (remaining.length > 0) {
-    const from = ordered[ordered.length - 1].coordinates;
+    const from = ordered.length > 0 ? ordered[ordered.length - 1].coordinates : (start as LatLng);
     let closest = 0;
     for (let i = 1; i < remaining.length; i++) {
       if (
@@ -120,8 +136,8 @@ function formatLimit(minutes: number) {
 }
 
 /** Link that opens the same route in the real Google Maps (web or app). */
-function googleMapsUrl(stops: EventItem[], urlMode: string) {
-  const point = (event: EventItem) => `${event.coordinates.lat},${event.coordinates.lng}`;
+function googleMapsUrl(stops: RouteStop[], urlMode: string) {
+  const point = (event: RouteStop) => `${event.coordinates.lat},${event.coordinates.lng}`;
   const params = new URLSearchParams({
     api: "1",
     origin: point(stops[0]),
@@ -144,7 +160,7 @@ function RouteLoader({
   onResult,
 }: {
   requestKey: string;
-  stops: EventItem[];
+  stops: RouteStop[];
   mode: TravelModeId;
   onResult: (result: RouteResult) => void;
 }) {
@@ -236,21 +252,21 @@ function CopyLinkRow({ url }: { url: string }) {
 
 // ---------------------------------------------------------------------------------------------
 
-/** Moves the camera so every result is in view. Runs only when the results change. */
-function FitToEvents({ events }: { events: EventItem[] }) {
+/** Moves the camera so every point is in view. Runs only when the points change. */
+function FitToPoints({ points }: { points: LatLng[] }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!map || events.length === 0) return;
-    if (events.length === 1) {
-      map.panTo(events[0].coordinates);
+    if (!map || points.length === 0) return;
+    if (points.length === 1) {
+      map.panTo(points[0]);
       map.setZoom(16);
       return;
     }
     const bounds = new google.maps.LatLngBounds();
-    events.forEach((event) => bounds.extend(event.coordinates));
+    points.forEach((point) => bounds.extend(point));
     map.fitBounds(bounds, 80);
-  }, [map, events]);
+  }, [map, points]);
 
   return null;
 }
@@ -336,10 +352,67 @@ export default function EventMap() {
   const [limitMin, setLimitMin] = useState<number | null>(null);
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
 
+  // The user's location, used as the start of the route. Asked for the first time a travel mode is picked.
+  const [location, setLocation] = useState<LocationState>({ status: "idle" });
+  const myLocation = location.status === "on" ? location.coordinates : null;
+
+  const requestLocation = () => {
+    // Browsers only share the location on https pages and on localhost / 127.0.0.1.
+    if (!window.isSecureContext) {
+      setLocation({
+        status: "failed",
+        reason:
+          "Browsers only share your location on https pages or on localhost. Open the site as http://localhost:3000 instead of an IP address.",
+      });
+      return;
+    }
+    if (!("geolocation" in navigator)) {
+      setLocation({ status: "failed", reason: "This browser can't share a location." });
+      return;
+    }
+    setLocation({ status: "asking" });
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        setLocation({
+          status: "on",
+          coordinates: { lat: position.coords.latitude, lng: position.coords.longitude },
+        }),
+      (error) =>
+        setLocation({
+          status: "failed",
+          reason:
+            error.code === error.PERMISSION_DENIED
+              ? "Location is blocked for this site. Allow it from the icon at the left of the address bar, and check that your system lets the browser use location."
+              : error.code === error.TIMEOUT
+                ? "Finding your location took too long."
+                : "Your device couldn't work out where it is (no location service answered).",
+        }),
+      { timeout: 20000, maximumAge: 60000 },
+    );
+  };
+
   const mode = TRAVEL_MODES.find((m) => m.id === modeId) ?? null;
-  const stops = useMemo(() => orderStops(results), [results]);
+  // The route visits the events in this order, starting from the user's location when it is known.
+  const stops = useMemo<RouteStop[]>(() => {
+    const ordered = orderStops(results, myLocation);
+    if (!myLocation) return ordered;
+    const start: RouteStop = {
+      id: MY_LOCATION_ID,
+      title: "Your location",
+      location: "Starting point",
+      coordinates: myLocation,
+    };
+    return [start, ...ordered];
+  }, [results, myLocation]);
+  // Everything the camera should keep in view.
+  const fitPoints = useMemo(
+    () => [...(myLocation ? [myLocation] : []), ...results.map((event) => event.coordinates)],
+    [results, myLocation],
+  );
   const canRoute = mode !== null && stops.length >= 2;
-  const routeKey = `${modeId}:${stops.map((stop) => stop.id).join(",")}`;
+  const routeKey = `${modeId}:${stops
+    .map((stop) => `${stop.id}@${stop.coordinates.lat},${stop.coordinates.lng}`)
+    .join(";")}`;
   // Only a result for the current stops and travel mode counts; anything else is still loading.
   const route = canRoute && routeResult?.key === routeKey ? routeResult : null;
   const routeLoading = canRoute && route === null && API_KEY !== "";
@@ -356,7 +429,7 @@ export default function EventMap() {
       stopCount++;
     }
   }
-  const routeStops = canRoute ? stops.slice(0, stopCount) : NO_EVENTS;
+  const routeStops = canRoute ? stops.slice(0, stopCount) : NO_STOPS;
   const routeLegs = legs ? legs.slice(0, stopCount - 1) : [];
   const hasRoute = routeStops.length >= 2;
   const totalMillis = routeLegs.reduce((sum, leg) => sum + (leg.durationMillis ?? 0), 0);
@@ -370,7 +443,9 @@ export default function EventMap() {
         ? route.fullPath
         : routeStops.map((stop) => stop.coordinates);
   }
-  const stopNumber = (eventId: string) => routeStops.findIndex((stop) => stop.id === eventId) + 1;
+  // Events are numbered in visiting order; the user's location is the start and has no number.
+  const routeEvents = routeStops.filter((stop) => stop.id !== MY_LOCATION_ID);
+  const stopNumber = (eventId: string) => routeEvents.findIndex((stop) => stop.id === eventId) + 1;
 
   return (
     <div>
@@ -384,10 +459,29 @@ export default function EventMap() {
               key={travelMode.id}
               label={travelMode.label}
               selected={modeId === travelMode.id}
-              onClick={() => setModeId(modeId === travelMode.id ? null : travelMode.id)}
+              onClick={() => {
+                const turningOn = modeId !== travelMode.id;
+                setModeId(turningOn ? travelMode.id : null);
+                // First time a route is asked for: ask the browser for the user's location.
+                if (turningOn && location.status === "idle") requestLocation();
+              }}
             />
           ))}
+          <FilterChip
+            label={location.status === "asking" ? "Finding your location…" : "From my location"}
+            selected={location.status === "on"}
+            onClick={() => {
+              if (location.status === "on") setLocation({ status: "off" });
+              else if (location.status !== "asking") requestLocation();
+            }}
+          />
         </div>
+        {location.status === "failed" && (
+          <p role="alert" className="text-sm text-destructive">
+            {location.reason} The route starts at the first event for now; press &quot;From my
+            location&quot; to try again.
+          </p>
+        )}
         {mode && (
           <div
             role="group"
@@ -444,7 +538,13 @@ export default function EventMap() {
               clickableIcons={false}
               onClick={() => setSelectedId(null)}
             >
-              <FitToEvents events={results} />
+              <FitToPoints points={fitPoints} />
+              {myLocation && (
+                <AdvancedMarker position={myLocation} title="Your location" zIndex={2}>
+                  {/* A fixed blue dot with a white ring reads as "you are here" on both map themes. */}
+                  <div className="size-4 translate-y-1/2 rounded-full border-2 border-white bg-[#4285F4] shadow-[0_0_0_4px_rgba(66,133,244,0.3)]" />
+                </AdvancedMarker>
+              )}
               {canRoute && mode && (
                 <RouteLoader
                   requestKey={routeKey}
@@ -503,17 +603,21 @@ export default function EventMap() {
 
           {!canRoute ? (
             <p className="mt-1 text-sm text-muted-foreground">
-              Search or pick filters that match at least two events to get a route between them.
+              {myLocation
+                ? "Search or pick filters that match at least one event to get a route from your location."
+                : "Search or pick filters that match at least two events to get a route between them."}
             </p>
           ) : !hasRoute ? (
             <p className="mt-1 text-sm text-muted-foreground">
-              No other event is within {formatLimit(limitMin ?? 0)} of {mode.noun.toLowerCase()} from{" "}
-              {stops[0].title}. Try a longer time or another travel mode.
+              No {myLocation ? "" : "other "}event is within {formatLimit(limitMin ?? 0)} of{" "}
+              {mode.noun.toLowerCase()} from {myLocation ? "your location" : stops[0].title}. Try a
+              longer time or another travel mode.
             </p>
           ) : (
             <>
               <p className="mt-1 text-sm text-muted-foreground">
-                {routeStops.length} stops
+                {myLocation ? "From your location · " : ""}
+                {routeEvents.length} {routeEvents.length === 1 ? "stop" : "stops"}
                 {legs && ` · ${formatDuration(totalMillis)} · ${formatDistance(totalMeters)}`}
                 {routeLoading && " · calculating route…"}
                 {routeStops.length < stops.length &&
@@ -532,7 +636,11 @@ export default function EventMap() {
                     <span
                       className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${ACCENT_FILL_CLASS}`}
                     >
-                      {i + 1}
+                      {stop.id === MY_LOCATION_ID ? (
+                        <LocateFixedIcon className="size-3.5" aria-label="Start" />
+                      ) : (
+                        stopNumber(stop.id)
+                      )}
                     </span>
                     <span>
                       <span className="font-medium">{stop.title}</span>
