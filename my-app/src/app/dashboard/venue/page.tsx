@@ -10,7 +10,7 @@ async function ProviderDashboardContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Provider Hub</h1>
-          <p className="text-gray-500 mt-1">Welcome, {provider.name || provider.email}</p>
+          <p className="text-muted-foreground mt-1">Welcome, {provider.name || provider.email}</p>
         </div>
         <LogoutButton />
       </div>

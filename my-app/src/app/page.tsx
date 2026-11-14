@@ -1,9 +1,10 @@
-import RoleLoginCard from "@/components/RoleLoginCard";
+import FeaturedCarousel from "@/components/FeaturedCarousel";
 import TextType from "@/components/TextType/TextType";
 
 export default function HomePage() {
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-16">
+    <main>
+      <section className="flex min-h-[45dvh] items-center justify-center px-6 py-16">
       <div className="w-full max-w-2xl text-center">
         <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
           <TextType
@@ -17,16 +18,17 @@ export default function HomePage() {
             cursorStyle="underscore"
             cursorGlide={false}
             showCursor
-            cursorColor="#000000"
-            prefixColor="#000000"
+            cursorColor="currentColor"
+            prefixColor="currentColor"
             cursorBlinkDuration={0.5}
             cursorCharacter="_"
             prefix=""
             variableSpeed={{"min":55,"max":120}}
           />
         </h1>
-        <RoleLoginCard />
       </div>
+      </section>
+      <FeaturedCarousel />
     </main>
   );
 }

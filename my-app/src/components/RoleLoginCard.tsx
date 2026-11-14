@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -32,21 +32,20 @@ const ROLES: { id: AccountType; label: string; description: string }[] = [
   },
 ];
 
-export default function RoleLoginCard() {
+export default function RoleLoginCard({
+  trigger,
+}: {
+  /** Element that opens the dialog (the account icon in the header). */
+  trigger: ReactElement;
+}) {
   const [selectedRole, setSelectedRole] = useState<AccountType>('user');
 
   const activeRole = ROLES.find((role) => role.id === selectedRole) ?? ROLES[0];
   const returnTo = encodeURIComponent(`/onboarding?role=${selectedRole}`);
 
   return (
-    <Dialog defaultOpen={true}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" className="mt-8 rounded-xl">
-            Log in or sign up
-          </Button>
-        }
-      />
+    <Dialog>
+      <DialogTrigger render={trigger} />
       <DialogContent className="sm:max-w-[380px] rounded-[28px] p-8">
         <DialogHeader className="text-center sm:text-center">
           <DialogTitle className="text-xl font-bold tracking-tight">
