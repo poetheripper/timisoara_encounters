@@ -5,7 +5,19 @@ import Link from "next/link";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { Menu } from "@base-ui/react/menu";
 import { usePathname } from "next/navigation";
-import { BookmarkIcon, HomeIcon, LogOutIcon, MapIcon, MenuIcon, SearchIcon, SettingsIcon, UserIcon } from "lucide-react";
+
+import {
+  HomeIcon,
+  LogOutIcon,
+  BookmarkIcon,
+  MapIcon,
+  MegaphoneIcon,
+  MenuIcon,
+  SearchIcon,
+  SettingsIcon,
+  UserIcon,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import RoleLoginCard from "@/components/RoleLoginCard";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -102,6 +114,17 @@ export default function SiteHeader() {
             render={<Link href="/search" />}
           >
             <SearchIcon className="size-5 sm:size-6" />
+          </Button>
+
+          <Button
+            nativeButton={false}
+            variant="ghost"
+            size="icon-lg"
+            aria-label="Open calls"
+            title="Open calls"
+            render={<Link href="/open-calls" />}
+          >
+            <MegaphoneIcon className="size-5 sm:size-6" />
           </Button>
 
           <Button
