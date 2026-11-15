@@ -3,11 +3,8 @@
 import Image from "next/image";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, PauseIcon, PlayIcon } from "lucide-react";
-import { EVENTS, eventBackground } from "@/lib/events";
+import type { HomeEvent } from "@/lib/home-events";
 import { ACCENT_BORDER_CLASS, ACCENT_FILL_CLASS } from "@/lib/styles";
-
-// The slides are the shared events from src/lib/events.ts — edit them there.
-const SLIDES = EVENTS;
 
 const AUTOPLAY_MS = 5000;
 const SWIPE_THRESHOLD_PX = 40;
@@ -18,14 +15,8 @@ const CAT_MIN_CARDS_AWAY = 2;
 const CAT_SETTLE_MS = 1200;
 const CAT_IDLE_RETURN_MS = 12000;
 
-// Placeholder for real images: hues spread by the golden angle so neighbours never look alike.
-// Derived from the index (not Math.random) so server and client render the same color.
-function placeholderColor(index: number) {
-  const hue = Math.round((index * 137.508 + 20) % 360);
-  return `linear-gradient(135deg, hsl(${hue} 70% 45%), hsl(${(hue + 40) % 360} 75% 30%))`;
-}
-
-export default function FeaturedCarousel() {
+/** The homepage carousel. `slides` are the featured events (see featuredEvents in src/lib/home-events.ts). */
+export default function FeaturedCarousel({ slides }: { slides: HomeEvent[] }) {
   const [active, setActive] = useState(0);
   const [playing, setPlaying] = useState(false);
   const touchStartX = useRef<number | null>(null);
@@ -47,7 +38,7 @@ export default function FeaturedCarousel() {
   // (Later: this is the moment to play the falling-cat animation instead of just fading out.)
   const catVisible = cat.atMove === moves;
 
-  const count = SLIDES.length;
+  const count = slides.length;
   const go = (index: number) => {
     const next = ((index % count) + count) % count;
     if (next === active) return;
@@ -63,6 +54,8 @@ export default function FeaturedCarousel() {
     }, AUTOPLAY_MS);
     return () => clearInterval(id);
   }, [playing, count]);
+
+  if (count === 0) return null;
 
   return (
     <section
@@ -97,7 +90,7 @@ export default function FeaturedCarousel() {
             } as CSSProperties
           }
         >
-          {SLIDES.map((slide, i) => {
+          {slides.map((slide, i) => {
             const isActive = i === active;
             return (
               <div
@@ -110,8 +103,12 @@ export default function FeaturedCarousel() {
                 className={`relative h-[clamp(13rem,30vw,23rem)] w-(--w) shrink-0 overflow-hidden rounded-3xl text-white transition-opacity duration-500 ${
                   isActive ? "" : "cursor-pointer opacity-60"
                 }`}
-                style={{ background: eventBackground(slide) }}
+                style={{ background: slide.background }}
               >
+                {slide.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- user upload, already resized
+                  <img src={slide.imageUrl} alt="" className="absolute inset-0 size-full object-cover" />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 text-left sm:p-8">
                   <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${ACCENT_FILL_CLASS}`}>
@@ -120,7 +117,7 @@ export default function FeaturedCarousel() {
                   <h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-3xl">
                     {slide.title}
                   </h2>
-                  <p className="mt-2 text-sm text-white/85 sm:text-base">{slide.subtitle}</p>
+                  <p className="mt-2 text-sm text-white/85 sm:text-base">{slide.summary}</p>
                 </div>
               </div>
             );
@@ -159,25 +156,29 @@ export default function FeaturedCarousel() {
           />
         </div>
 
-        <button
-          type="button"
-          aria-label="Previous slide"
-          onClick={() => go(active - 1)}
-          className="absolute top-1/2 left-2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-black shadow backdrop-blur transition hover:bg-white sm:left-[8%]"
-        >
-          <ChevronLeftIcon className="size-5" />
-        </button>
-        <button
-          type="button"
-          aria-label="Next slide"
-          onClick={() => go(active + 1)}
-          className="absolute top-1/2 right-2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-black shadow backdrop-blur transition hover:bg-white sm:right-[8%]"
-        >
-          <ChevronRightIcon className="size-5" />
-        </button>
+        {count > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous slide"
+              onClick={() => go(active - 1)}
+              className="absolute top-1/2 left-2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-black shadow backdrop-blur transition hover:bg-white sm:left-[8%]"
+            >
+              <ChevronLeftIcon className="size-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next slide"
+              onClick={() => go(active + 1)}
+              className="absolute top-1/2 right-2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-black shadow backdrop-blur transition hover:bg-white sm:right-[8%]"
+            >
+              <ChevronRightIcon className="size-5" />
+            </button>
+          </>
+        )}
       </div>
 
-      <div className="mt-10 flex items-center justify-center gap-3">
+      <div className={`mt-10 items-center justify-center gap-3 ${count > 1 ? "flex" : "hidden"}`}>
         <button
           type="button"
           aria-label={playing ? "Pause slideshow" : "Play slideshow"}
@@ -188,7 +189,7 @@ export default function FeaturedCarousel() {
         </button>
 
         <div className="flex h-10 items-center gap-1 rounded-full bg-muted px-4">
-          {SLIDES.map((_, i) => (
+          {slides.map((_, i) => (
             <button
               key={i}
               type="button"

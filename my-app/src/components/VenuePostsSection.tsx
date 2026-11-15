@@ -1,11 +1,21 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { PlusIcon, Trash2Icon } from "lucide-react";
-import { ErrorText, FIELD_CLASS, Section } from "@/components/UserDashboard";
+import { LinkIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import EventBanner from "@/components/EventBanner";
+import PostLink from "@/components/PostLink";
+import {
+  ErrorText,
+  FIELD_CLASS,
+  PickImageButton,
+  RemoveImageButton,
+  Section,
+  prepareImage,
+} from "@/components/UserDashboard";
 import { ACCENT_FILL_CLASS } from "@/lib/styles";
 import {
   POST_DESCRIPTION_MAX,
+  POST_LINK_MAX,
   POST_TITLE_MAX,
   VENUE_POST_KINDS,
   byDate,
@@ -16,7 +26,10 @@ import {
 } from "@/lib/venue-posts";
 import { addVenuePost, deleteVenuePost } from "@/lib/venue-posts-actions";
 
-const EMPTY_FORM = { title: "", description: "", date: "" };
+const EMPTY_FORM = { title: "", description: "", date: "", link: "" };
+
+/** A banner picked for the new post: the file to upload, and an address to preview it with. */
+type PickedBanner = { blob: Blob; previewUrl: string };
 
 /** One dashboard section for a venue's events or its open calls: the list, plus a form to add one. */
 export default function VenuePostsSection({
@@ -29,6 +42,8 @@ export default function VenuePostsSection({
   const labels = VENUE_POST_KINDS[kind];
   const [posts, setPosts] = useState(() => [...initial].sort(byDate));
   const [form, setForm] = useState(EMPTY_FORM);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [banner, setBanner] = useState<PickedBanner | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -37,19 +52,43 @@ export default function VenuePostsSection({
     setError(null);
   };
 
+  const replaceBanner = (next: PickedBanner | null) => {
+    if (banner) URL.revokeObjectURL(banner.previewUrl);
+    setBanner(next);
+  };
+
+  const onPickBanner = (file: File | undefined) => {
+    if (!file) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        // Same size as a profile cover picture.
+        const blob = await prepareImage(file, "cover");
+        replaceBanner({ blob, previewUrl: URL.createObjectURL(blob) });
+      } catch {
+        setError("That picture can't be used. Try a JPEG or PNG image.");
+      }
+    });
+  };
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const cleaned = cleanVenuePost({ kind, ...form });
+    const cleaned = cleanVenuePost({ kind, ...form, link: linkOpen ? form.link : "" });
     if (!cleaned.ok) {
       setError(cleaned.error);
       return;
     }
     setError(null);
+    const formData = new FormData();
+    formData.set("post", JSON.stringify(cleaned.post));
+    if (banner) formData.set("banner", banner.blob, "banner.jpg");
     startTransition(async () => {
-      const result = await addVenuePost(cleaned.post);
+      const result = await addVenuePost(formData);
       if (result.ok) {
         setPosts((current) => [...current, result.post].sort(byDate));
         setForm(EMPTY_FORM);
+        setLinkOpen(false);
+        replaceBanner(null);
       } else {
         setError(result.error);
       }
@@ -77,13 +116,30 @@ export default function VenuePostsSection({
           {posts.map((post) => (
             <li key={post.id} className="flex items-start gap-3 rounded-2xl border border-border p-4">
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground">
-                  {labels.dateLabel}: {formatPostDate(post.date)}
-                </p>
-                <h3 className="mt-1 font-semibold tracking-tight break-words">{post.title}</h3>
-                <p className="mt-1 text-sm break-words whitespace-pre-line text-muted-foreground">
+                {labels.banner ? (
+                  <EventBanner
+                    title={post.title}
+                    tag={formatPostDate(post.date)}
+                    imageUrl={post.bannerUrl}
+                    seed={post.id}
+                    className="h-40"
+                  />
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {labels.dateLabel}: {formatPostDate(post.date)}
+                    </p>
+                    <h3 className="mt-1 font-semibold tracking-tight break-words">{post.title}</h3>
+                  </>
+                )}
+                <p
+                  className={`text-sm break-words whitespace-pre-line text-muted-foreground ${
+                    labels.banner ? "mt-3" : "mt-1"
+                  }`}
+                >
                   {post.description}
                 </p>
+                {post.link && <PostLink href={post.link} label={labels.linkLabel} />}
               </div>
               <button
                 type="button"
@@ -141,14 +197,89 @@ export default function VenuePostsSection({
             className={`${FIELD_CLASS} resize-y rounded-2xl py-3`}
           />
         </div>
-        <button
-          type="submit"
-          disabled={pending}
-          className={`flex h-11 items-center gap-2 rounded-full px-5 text-sm font-medium transition disabled:opacity-50 ${ACCENT_FILL_CLASS}`}
-        >
-          <PlusIcon className="size-4" />
-          {pending ? "Saving…" : `Add ${labels.singular}`}
-        </button>
+        {linkOpen && (
+          <div>
+            <label htmlFor={id("link")} className="text-sm text-muted-foreground">
+              Link (tickets or another website)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id={id("link")}
+                value={form.link}
+                onChange={(e) => setField("link", e.target.value)}
+                maxLength={POST_LINK_MAX}
+                placeholder="tickets.example.com/your-event"
+                autoCapitalize="none"
+                spellCheck={false}
+                autoFocus
+                className={`${FIELD_CLASS} h-11 min-w-0 rounded-full`}
+              />
+              <button
+                type="button"
+                aria-label="Remove link"
+                title="Remove link"
+                onClick={() => {
+                  setLinkOpen(false);
+                  setField("link", "");
+                }}
+                className="mt-1 flex size-11 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <XIcon className="size-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        {labels.banner && (
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Banner (optional). This is how the {labels.singular} will look on your profile.
+            </p>
+            <EventBanner
+              title={form.title.trim() || `Your ${labels.singular} title`}
+              tag={form.date ? formatPostDate(form.date) : labels.dateLabel}
+              imageUrl={banner?.previewUrl}
+              seed={kind}
+              className="mt-2 h-48"
+            >
+              <div className="absolute top-3 right-3 flex gap-2">
+                {banner && (
+                  <RemoveImageButton
+                    label="Remove banner"
+                    disabled={pending}
+                    onClick={() => replaceBanner(null)}
+                    className="size-9"
+                  />
+                )}
+                <PickImageButton
+                  label={banner ? "Change banner" : "Add banner"}
+                  disabled={pending}
+                  onPick={onPickBanner}
+                  className="size-9"
+                />
+              </div>
+            </EventBanner>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            disabled={pending}
+            className={`flex h-11 items-center gap-2 rounded-full px-5 text-sm font-medium transition disabled:opacity-50 ${ACCENT_FILL_CLASS}`}
+          >
+            <PlusIcon className="size-4" />
+            {pending ? "Saving…" : `Add ${labels.singular}`}
+          </button>
+          {!linkOpen && (
+            <button
+              type="button"
+              onClick={() => setLinkOpen(true)}
+              className="flex h-11 items-center gap-2 rounded-full border border-border px-5 text-sm font-medium transition hover:bg-muted"
+            >
+              <LinkIcon className="size-4" />
+              Add link
+            </button>
+          )}
+        </div>
         {error && <ErrorText>{error}</ErrorText>}
       </form>
     </Section>

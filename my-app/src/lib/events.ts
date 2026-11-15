@@ -18,6 +18,8 @@ export type EventItem = {
   date: string;
   /** Optional CSS background. When missing, a color is generated from the event's position. */
   color?: string;
+  /** Set a number to feature this event in the homepage carousel; lower numbers come first. */
+  featured?: number;
 };
 
 // Test data is dated relative to today so the time filters always have something to match.

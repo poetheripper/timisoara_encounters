@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import EventBanner from "@/components/EventBanner";
+import PostLink from "@/components/PostLink";
+import { VenueLocationInfo, VenueScheduleInfo } from "@/components/VenueInfo";
 import { ROLE_LABEL, displayName, publicRole } from "@/lib/accounts";
 import { contactType, storedContactLinks, type ContactLink } from "@/lib/contact";
 import { ACCENT_FILL_CLASS } from "@/lib/styles";
@@ -11,7 +14,9 @@ import {
   type VenuePost,
   type VenuePostKind,
 } from "@/lib/venue-posts";
+import { storedVenueLocation } from "@/lib/venue-location";
 import { loadVenuePosts } from "@/lib/venue-posts-data";
+import { storedVenueSchedule } from "@/lib/venue-schedule";
 import { createClient } from "@/utils/supabase/server";
 
 /** Finds a public account by the last part of its profile address: a username, or an account id. */
@@ -19,7 +24,9 @@ async function loadAccount(handle: string) {
   const supabase = createClient();
   const query = supabase
     .from("users")
-    .select("id, name, username, bio, avatar_url, cover_url, contact_links, role");
+    .select(
+      "id, name, username, bio, avatar_url, cover_url, contact_links, role, location, schedule",
+    );
 
   // Account ids always contain "|" (e.g. "auth0|abc"), which usernames can't.
   if (handle.includes("|")) return query.eq("id", handle).maybeSingle();
@@ -69,21 +76,52 @@ function PostList({ kind, posts }: { kind: VenuePostKind; posts: VenuePost[] }) 
       {posts.length === 0 ? (
         <p className="text-sm text-muted-foreground">{labels.empty}</p>
       ) : (
-        <ul className="space-y-3">
-          {posts.map((post) => (
-            <li key={post.id} className="rounded-2xl border border-border p-4">
-              <p className="text-xs text-muted-foreground">
-                {labels.dateLabel}: {formatPostDate(post.date)}
-              </p>
-              <h3 className="mt-1 font-semibold tracking-tight break-words">{post.title}</h3>
-              <p className="mt-1 text-sm break-words whitespace-pre-line text-muted-foreground">
-                {post.description}
-              </p>
-            </li>
-          ))}
+        <ul className={labels.banner ? "space-y-8" : "space-y-3"}>
+          {posts.map((post) =>
+            labels.banner ? (
+              <li key={post.id}>
+                <EventBanner
+                  title={post.title}
+                  tag={formatPostDate(post.date)}
+                  imageUrl={post.bannerUrl}
+                  seed={post.id}
+                />
+                <p className="mt-3 text-sm break-words whitespace-pre-line text-muted-foreground">
+                  {post.description}
+                </p>
+                {post.link && <PostLink href={post.link} label={labels.linkLabel} />}
+              </li>
+            ) : (
+              <li key={post.id} className="rounded-2xl border border-border p-4">
+                <p className="text-xs text-muted-foreground">
+                  {labels.dateLabel}: {formatPostDate(post.date)}
+                </p>
+                <h3 className="mt-1 font-semibold tracking-tight break-words">{post.title}</h3>
+                <p className="mt-1 text-sm break-words whitespace-pre-line text-muted-foreground">
+                  {post.description}
+                </p>
+                {post.link && <PostLink href={post.link} label={labels.linkLabel} />}
+              </li>
+            ),
+          )}
         </ul>
       )}
     </Card>
+  );
+}
+
+/** Page frame: the back link above the content. Venue profiles with a side column are wider. */
+function Shell({ wide = false, children }: { wide?: boolean; children: React.ReactNode }) {
+  return (
+    <main className={`mx-auto p-8 ${wide ? "max-w-6xl" : "max-w-4xl"}`}>
+      <Link
+        href="/search"
+        className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+      >
+        ← Back to search
+      </Link>
+      <div className="mt-6">{children}</div>
+    </main>
   );
 }
 
@@ -92,7 +130,11 @@ async function ProfileContent({ params }: { params: Promise<{ handle: string }> 
   const { data: account, error } = await loadAccount(decodeURIComponent(handle));
   if (error) {
     console.error("Profile page error:", error.message);
-    return <p className="text-center text-muted-foreground">This profile can&apos;t be loaded right now.</p>;
+    return (
+      <Shell>
+        <p className="text-center text-muted-foreground">This profile can&apos;t be loaded right now.</p>
+      </Shell>
+    );
   }
 
   // Only artists and venues have a public profile.
@@ -107,8 +149,21 @@ async function ProfileContent({ params }: { params: Promise<{ handle: string }> 
   const upcoming = (kind: VenuePostKind) =>
     (venuePosts?.posts ?? []).filter((post) => post.kind === kind && post.date >= today);
 
+  // Venues show where and when to find them in a column on the right (below the rest on phones).
+  const location = role === "venue" ? storedVenueLocation(account.location) : null;
+  const schedule = role === "venue" ? storedVenueSchedule(account.schedule) : null;
+  const aside = (location || schedule) && (
+    <aside className="space-y-6 self-start rounded-3xl border border-border bg-card p-6 text-card-foreground">
+      {location && <VenueLocationInfo location={location} name={name} />}
+      {location && schedule && <hr className="border-border" />}
+      {schedule && <VenueScheduleInfo schedule={schedule} />}
+    </aside>
+  );
+
   return (
-    <div className="space-y-6">
+    <Shell wide={Boolean(aside)}>
+      <div className={aside ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]" : ""}>
+        <div className="min-w-0 space-y-6">
       <section className="rounded-3xl border border-border bg-card p-6 text-card-foreground">
         {/* Cover picture, with the profile picture overlapping its bottom edge. */}
         <div className="relative mb-14">
@@ -156,24 +211,23 @@ async function ProfileContent({ params }: { params: Promise<{ handle: string }> 
           <PostList kind="event" posts={upcoming("event")} />
         </>
       )}
-    </div>
+        </div>
+        {aside}
+      </div>
+    </Shell>
   );
 }
 
 export default function ProfilePage({ params }: { params: Promise<{ handle: string }> }) {
   return (
-    <main className="mx-auto max-w-4xl p-8">
-      <Link
-        href="/search"
-        className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
-      >
-        ← Back to search
-      </Link>
-      <div className="mt-6">
-        <Suspense fallback={<p className="text-muted-foreground">Loading profile…</p>}>
-          <ProfileContent params={params} />
-        </Suspense>
-      </div>
-    </main>
+    <Suspense
+      fallback={
+        <Shell>
+          <p className="text-muted-foreground">Loading profile…</p>
+        </Shell>
+      }
+    >
+      <ProfileContent params={params} />
+    </Suspense>
   );
 }

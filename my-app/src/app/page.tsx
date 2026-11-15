@@ -1,5 +1,12 @@
-import FeaturedCarousel from "@/components/FeaturedCarousel";
+import { Suspense } from "react";
+import HomeEvents from "@/components/HomeEvents";
 import TextType from "@/components/TextType/TextType";
+import { loadVenueEvents } from "@/lib/home-events-data";
+
+/** Loads the events venues published; the carousel and the calendar appear once they are in. */
+async function Events() {
+  return <HomeEvents venueEvents={await loadVenueEvents()} />;
+}
 
 export default function HomePage() {
   return (
@@ -28,7 +35,11 @@ export default function HomePage() {
         </h1>
       </div>
       </section>
-      <FeaturedCarousel />
+      <Suspense
+        fallback={<p className="py-30 text-center text-sm text-muted-foreground">Loading events…</p>}
+      >
+        <Events />
+      </Suspense>
     </main>
   );
 }

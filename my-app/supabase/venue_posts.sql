@@ -14,5 +14,13 @@ create table if not exists public.venue_posts (
 
 create index if not exists venue_posts_venue on public.venue_posts (venue_id, kind, date);
 
--- NOTE: the app talks to Supabase with the publishable key (logins go through Auth0, not Supabase),
--- so venue_posts needs the same access rules (RLS off, or the same policies) as the users table.
+-- The app talks to Supabase with the publishable key (logins go through Auth0, not Supabase),
+-- so that key has to be allowed to read and write this table. Who may change which post is
+-- checked by the app's server actions (src/lib/venue-posts-actions.ts).
+alter table public.venue_posts enable row level security;
+drop policy if exists "venue posts are managed by the app" on public.venue_posts;
+create policy "venue posts are managed by the app"
+  on public.venue_posts for all
+  to anon, authenticated
+  using (true)
+  with check (true);

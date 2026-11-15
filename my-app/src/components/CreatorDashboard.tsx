@@ -1,16 +1,21 @@
 import Link from "next/link";
 import ContactSection from "@/components/ContactSection";
 import { ProfileSection } from "@/components/UserDashboard";
+import VenueLocationSection from "@/components/VenueLocationSection";
 import VenuePostsSection from "@/components/VenuePostsSection";
+import VenueScheduleSection from "@/components/VenueScheduleSection";
 import { profileHref } from "@/lib/accounts";
 import { requireRole, type AccountType } from "@/lib/auth-helpers";
 import { storedContactLinks } from "@/lib/contact";
+import { storedVenueLocation } from "@/lib/venue-location";
 import { loadVenuePosts } from "@/lib/venue-posts-data";
+import { storedVenueSchedule } from "@/lib/venue-schedule";
 import { createClient } from "@/utils/supabase/server";
 
 /**
  * Dashboard shared by artist and venue accounts: the same profile editor as the user
- * dashboard, plus the contact links. Venues also manage their open calls and events.
+ * dashboard, plus the contact links. Venues also manage their location, schedule, open calls
+ * and events.
  * Sends other roles to their own dashboard.
  */
 export default async function CreatorDashboard({
@@ -26,7 +31,7 @@ export default async function CreatorDashboard({
   const [{ data, error: profileError }, venuePosts] = await Promise.all([
     supabase
       .from("users")
-      .select("name, username, bio, avatar_url, cover_url, contact_links")
+      .select("name, username, bio, avatar_url, cover_url, contact_links, location, schedule")
       .eq("id", account.sub)
       .maybeSingle(),
     role === "venue" ? loadVenuePosts(account.sub) : null,
@@ -58,8 +63,9 @@ export default async function CreatorDashboard({
           >
             Your profile can&apos;t be loaded or saved yet: the database is missing some columns or
             tables. Run <code className="rounded bg-muted px-1 py-0.5">supabase/user_dashboard.sql</code>,{" "}
-            <code className="rounded bg-muted px-1 py-0.5">supabase/contact_links.sql</code> and{" "}
-            <code className="rounded bg-muted px-1 py-0.5">supabase/venue_posts.sql</code> in the
+            <code className="rounded bg-muted px-1 py-0.5">supabase/contact_links.sql</code>,{" "}
+            <code className="rounded bg-muted px-1 py-0.5">supabase/venue_posts.sql</code> and{" "}
+            <code className="rounded bg-muted px-1 py-0.5">supabase/venue_details.sql</code> in the
             Supabase SQL editor, then reload this page.
           </p>
         )}
@@ -76,6 +82,8 @@ export default async function CreatorDashboard({
         <ContactSection initial={storedContactLinks(data?.contact_links)} />
         {venuePosts && (
           <>
+            <VenueLocationSection initial={storedVenueLocation(data?.location)} />
+            <VenueScheduleSection initial={storedVenueSchedule(data?.schedule)} />
             <VenuePostsSection
               kind="open_call"
               initial={venuePosts.posts.filter((post) => post.kind === "open_call")}

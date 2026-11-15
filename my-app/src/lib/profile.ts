@@ -38,3 +38,8 @@ export const IMAGE_KINDS = ["avatar", "cover"] as const;
 export type ImageKind = (typeof IMAGE_KINDS)[number];
 /** Largest upload the server accepts, in bytes. Must stay under Next's 1 MB server action limit. */
 export const IMAGE_MAX_BYTES = 800 * 1024;
+
+/** Each account keeps its pictures in its own folder. Auth0 ids contain characters such as "|" that storage paths do not accept. */
+export function imageFolder(userId: string) {
+  return userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+}

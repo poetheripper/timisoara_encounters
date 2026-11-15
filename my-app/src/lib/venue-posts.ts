@@ -1,6 +1,8 @@
 // Events and open calls that a venue publishes on its profile.
 // Shared by the venue dashboard, the public profile page and the server actions.
 
+import { webAddress } from "@/lib/contact";
+
 export type VenuePostKind = "event" | "open_call";
 
 export type VenuePost = {
@@ -10,11 +12,25 @@ export type VenuePost = {
   description: string;
   /** Local calendar day, "YYYY-MM-DD": the day of an event, or the deadline of an open call. */
   date: string;
+  /** Tickets or another reference website; null when there is none. */
+  link: string | null;
+  /** Banner picture; null when there is none (a generated color is shown instead). */
+  bannerUrl: string | null;
 };
 
 export const VENUE_POST_KINDS: Record<
   VenuePostKind,
-  { title: string; singular: string; dateLabel: string; hint: string; empty: string }
+  {
+    title: string;
+    singular: string;
+    dateLabel: string;
+    hint: string;
+    empty: string;
+    /** Text of the button that opens the post's link. */
+    linkLabel: string;
+    /** Whether posts of this kind are shown with a banner picture. */
+    banner: boolean;
+  }
 > = {
   open_call: {
     title: "Open calls",
@@ -22,6 +38,8 @@ export const VENUE_POST_KINDS: Record<
     dateLabel: "Deadline",
     hint: "Invitations for artists to apply: what you are looking for and until when.",
     empty: "No open calls at the moment.",
+    linkLabel: "More info",
+    banner: false,
   },
   event: {
     title: "Events",
@@ -29,11 +47,14 @@ export const VENUE_POST_KINDS: Record<
     dateLabel: "Date",
     hint: "What is happening at your venue.",
     empty: "No upcoming events.",
+    linkLabel: "Tickets & info",
+    banner: true,
   },
 };
 
 export const POST_TITLE_MAX = 80;
 export const POST_DESCRIPTION_MAX = 1000;
+export const POST_LINK_MAX = 300;
 
 export function isVenuePostKind(kind: unknown): kind is VenuePostKind {
   return kind === "event" || kind === "open_call";
@@ -47,7 +68,8 @@ function isCalendarDay(value: string) {
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
 }
 
-export type NewVenuePost = Omit<VenuePost, "id">;
+/** What the venue fills in. The banner picture is uploaded next to it. */
+export type NewVenuePost = Omit<VenuePost, "id" | "bannerUrl">;
 
 /** Validates and cleans a post before saving. */
 export function cleanVenuePost(
@@ -69,7 +91,17 @@ export function cleanVenuePost(
   }
   if (!isCalendarDay(date)) return { ok: false, error: "Pick a date." };
 
-  return { ok: true, post: { kind: input.kind, title, description, date } };
+  // The link is optional. "https://" is added when missing.
+  const rawLink = String(input.link ?? "").trim();
+  if (rawLink.length > POST_LINK_MAX) {
+    return { ok: false, error: `Keep the link under ${POST_LINK_MAX} characters.` };
+  }
+  const link = rawLink === "" ? null : webAddress(rawLink);
+  if (rawLink !== "" && !link) {
+    return { ok: false, error: "Check the link: it doesn't look like a web address." };
+  }
+
+  return { ok: true, post: { kind: input.kind, title, description, date, link } };
 }
 
 /** "YYYY-MM-DD" shown as e.g. "Sat, 15 Nov 2026". */

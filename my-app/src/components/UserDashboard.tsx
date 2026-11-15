@@ -70,7 +70,7 @@ const IMAGE_SIZE: Record<ImageKind, { width: number; height: number; crop: boole
 };
 
 /** Shrinks a picked image in the browser to a JPEG small enough to upload. */
-async function prepareImage(file: File, kind: ImageKind): Promise<Blob> {
+export async function prepareImage(file: File, kind: ImageKind): Promise<Blob> {
   const { width: maxW, height: maxH, crop } = IMAGE_SIZE[kind];
   const bitmap = await createImageBitmap(file);
 
@@ -146,7 +146,7 @@ const ON_IMAGE_BUTTON_CLASS =
   "flex cursor-pointer items-center justify-center rounded-full bg-white/85 text-black shadow backdrop-blur transition hover:bg-white focus-within:ring-2 focus-within:ring-ring";
 
 /** Camera button that opens the file picker. The <label> makes the hidden input clickable. */
-function PickImageButton({
+export function PickImageButton({
   label,
   disabled,
   onPick,
@@ -179,7 +179,7 @@ function PickImageButton({
   );
 }
 
-function RemoveImageButton({
+export function RemoveImageButton({
   label,
   disabled,
   onClick,

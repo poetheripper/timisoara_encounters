@@ -17,7 +17,7 @@ export const CONTACT_LINKS_MAX = 10;
 export const CONTACT_VALUE_MAX = 200;
 
 /** Any web address. Adds https:// when missing and only ever lets http(s) links through. */
-function webAddress(value: string, allowedHosts?: string[]): string | null {
+export function webAddress(value: string, allowedHosts?: string[]): string | null {
   const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
   let url: URL;
   try {

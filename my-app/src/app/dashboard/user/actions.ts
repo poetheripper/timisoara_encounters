@@ -7,6 +7,7 @@ import {
   IMAGE_MAX_BYTES,
   INTERESTS,
   PROFILE_IMAGES_BUCKET,
+  imageFolder,
   nameProblem,
   usernameProblem,
   type ImageKind,
@@ -64,9 +65,8 @@ const IMAGE_COLUMN: Record<ImageKind, "avatar_url" | "cover_url"> = {
 };
 
 // Each user has one fixed file per picture, so a new upload replaces the old one.
-// Auth0 ids contain characters such as "|" that storage paths do not accept.
 function imagePath(userId: string, kind: ImageKind) {
-  return `${userId.replace(/[^a-zA-Z0-9_-]/g, "_")}/${kind}.jpg`;
+  return `${imageFolder(userId)}/${kind}.jpg`;
 }
 
 function isImageKind(kind: unknown): kind is ImageKind {
