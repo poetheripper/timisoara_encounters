@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { Menu } from "@base-ui/react/menu";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 
 import {
   HomeIcon,
@@ -83,9 +84,26 @@ function AccountButton() {
   );
 }
 
-export default function SiteHeader() {
+/** Link to the main page. The main page itself doesn't need a link to itself. */
+function HomeButton() {
   const isHome = usePathname() === "/";
+  if (isHome) return null;
 
+  return (
+    <Button
+      nativeButton={false}
+      variant="ghost"
+      size="icon-lg"
+      aria-label="Home"
+      title="Home"
+      render={<Link href="/" />}
+    >
+      <HomeIcon className="size-5 sm:size-6" />
+    </Button>
+  );
+}
+
+export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
       <div className="flex h-16 w-full items-center justify-between gap-2 px-3 sm:h-20 sm:px-6">
@@ -142,19 +160,11 @@ export default function SiteHeader() {
 
           <ThemeToggle />
 
-          {/* The main page doesn't need a link to itself. */}
-          {!isHome && (
-            <Button
-              nativeButton={false}
-              variant="ghost"
-              size="icon-lg"
-              aria-label="Home"
-              title="Home"
-              render={<Link href="/" />}
-            >
-              <HomeIcon className="size-5 sm:size-6" />
-            </Button>
-          )}
+          {/* On pages with a changing address (a profile, an open call) the address is only known
+              when the page is requested, so this one button waits for it; the rest of the header doesn't. */}
+          <Suspense fallback={null}>
+            <HomeButton />
+          </Suspense>
 
           <Menu.Root>
             <Menu.Trigger
