@@ -54,6 +54,10 @@ type RouteStop = { id: string; title: string; location: string; coordinates: Lat
 
 const MY_LOCATION_ID = "my-location";
 
+// ✏️ Fixed starting point used instead of the browser's location. Set to null to ask the browser again.
+// Currently: the Corneliu Mikloși Public Transport Museum (Multiplexity), Bd. Take Ionescu 83.
+const FIXED_START: LatLng | null = { lat: 45.7629964, lng: 21.2458789 };
+
 // Where the browser's location stands: not asked yet, being asked, known, refused / failed, or switched off.
 const NO_STOPS: RouteStop[] = [];
 
@@ -336,6 +340,10 @@ export default function EventMap({ venueEvents }: { venueEvents: EventItem[] }) 
   const myLocation = location.status === "on" ? location.coordinates : null;
 
   const requestLocation = () => {
+    if (FIXED_START) {
+      setLocation({ status: "on", coordinates: FIXED_START });
+      return;
+    }
     // Browsers only share the location on https pages and on localhost / 127.0.0.1.
     if (!window.isSecureContext) {
       setLocation({
@@ -366,7 +374,8 @@ export default function EventMap({ venueEvents }: { venueEvents: EventItem[] }) 
                 ? "Finding your location took too long."
                 : "Your device couldn't work out where it is (no location service answered).",
         }),
-      { timeout: 20000, maximumAge: 60000 },
+      // Ask for the most precise fix the device can give (GPS on phones) and never reuse an old one.
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
   };
 
