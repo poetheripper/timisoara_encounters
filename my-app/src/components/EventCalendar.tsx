@@ -70,6 +70,19 @@ function EventCard({ event }: { event: HomeEvent }) {
             )}
           </p>
         )}
+        {event.artists.length > 0 && (
+          <p className="mt-2 text-xs break-words">
+            With{" "}
+            {event.artists.map((artist, index) => (
+              <span key={artist.href}>
+                {index > 0 && ", "}
+                <Link href={artist.href} className="underline underline-offset-2 hover:text-muted-foreground">
+                  {artist.name}
+                </Link>
+              </span>
+            ))}
+          </p>
+        )}
         {event.link && <PostLink href={event.link} label="Tickets & info" />}
       </div>
     </article>

@@ -7,9 +7,13 @@ import { VenueLocationInfo, VenueScheduleInfo } from "@/components/VenueInfo";
 import { ROLE_LABEL, displayName, publicRole } from "@/lib/accounts";
 import { contactType, storedContactLinks, type ContactLink } from "@/lib/contact";
 import { ACCENT_FILL_CLASS } from "@/lib/styles";
+import type { AccountLink } from "@/lib/open-calls";
+import { loadEventArtists } from "@/lib/open-calls-data";
 import {
   VENUE_POST_KINDS,
+  bannerTag,
   formatPostDate,
+  showsBanner,
   todayDay,
   type VenuePost,
   type VenuePostKind,
@@ -69,7 +73,37 @@ function ContactList({ links }: { links: ContactLink[] }) {
   );
 }
 
-function PostList({ kind, posts }: { kind: VenuePostKind; posts: VenuePost[] }) {
+/** The artists accepted through an open call connected to an event. */
+function EventArtists({ artists }: { artists: AccountLink[] }) {
+  if (artists.length === 0) return null;
+  return (
+    <p className="mt-3 text-sm break-words">
+      <span className="text-muted-foreground">With:</span>{" "}
+      {artists.map((artist, index) => (
+        <span key={artist.href}>
+          {index > 0 && ", "}
+          <Link
+            href={artist.href}
+            className="font-medium underline underline-offset-4 hover:text-muted-foreground"
+          >
+            {artist.name}
+          </Link>
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function PostList({
+  kind,
+  posts,
+  artists = {},
+}: {
+  kind: VenuePostKind;
+  posts: VenuePost[];
+  /** Events only: the accepted artists of each event, by event id. */
+  artists?: Record<string, AccountLink[]>;
+}) {
   const labels = VENUE_POST_KINDS[kind];
   return (
     <Card title={labels.title}>
@@ -78,17 +112,18 @@ function PostList({ kind, posts }: { kind: VenuePostKind; posts: VenuePost[] }) 
       ) : (
         <ul className={labels.banner ? "space-y-8" : "space-y-3"}>
           {posts.map((post) =>
-            labels.banner ? (
+            showsBanner(post) ? (
               <li key={post.id}>
                 <EventBanner
                   title={post.title}
-                  tag={formatPostDate(post.date)}
+                  tag={bannerTag(post)}
                   imageUrl={post.bannerUrl}
                   seed={post.id}
                 />
                 <p className="mt-3 text-sm break-words whitespace-pre-line text-muted-foreground">
                   {post.description}
                 </p>
+                <EventArtists artists={artists[post.id] ?? []} />
                 {post.link && <PostLink href={post.link} label={labels.linkLabel} />}
               </li>
             ) : (
@@ -148,6 +183,8 @@ async function ProfileContent({ params }: { params: Promise<{ handle: string }> 
   const today = todayDay();
   const upcoming = (kind: VenuePostKind) =>
     (venuePosts?.posts ?? []).filter((post) => post.kind === kind && post.date >= today);
+  // Artists accepted through an open call are listed on the event the call was for.
+  const eventArtists = await loadEventArtists(upcoming("event").map((post) => post.id));
 
   // Venues show where and when to find them in a column on the right (below the rest on phones).
   const location = role === "venue" ? storedVenueLocation(account.location) : null;
@@ -208,7 +245,7 @@ async function ProfileContent({ params }: { params: Promise<{ handle: string }> 
       {venuePosts && (
         <>
           <PostList kind="open_call" posts={upcoming("open_call")} />
-          <PostList kind="event" posts={upcoming("event")} />
+          <PostList kind="event" posts={upcoming("event")} artists={eventArtists} />
         </>
       )}
         </div>

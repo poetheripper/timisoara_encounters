@@ -28,3 +28,16 @@ create policy "open call applications are managed by the app"
   to anon, authenticated
   using (true)
   with check (true);
+
+-- The venue's answer to an application. The artist is notified when it is given.
+alter table public.open_call_applications
+  add column if not exists status text not null default 'pending';
+alter table public.open_call_applications drop constraint if exists open_call_applications_status_check;
+alter table public.open_call_applications add constraint open_call_applications_status_check
+  check (status in ('pending', 'accepted', 'declined'));
+alter table public.open_call_applications add column if not exists responded_at timestamptz;
+
+-- The event an open call looks for artists for (optional). Accepted artists are listed on that event.
+alter table public.venue_posts
+  add column if not exists event_id uuid references public.venue_posts (id) on delete set null;
+create index if not exists venue_posts_event on public.venue_posts (event_id);

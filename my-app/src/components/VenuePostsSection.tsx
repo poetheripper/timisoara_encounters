@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { LinkIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import EventBanner from "@/components/EventBanner";
@@ -18,15 +19,19 @@ import {
   POST_LINK_MAX,
   POST_TITLE_MAX,
   VENUE_POST_KINDS,
+  bannerTag,
   byDate,
   cleanVenuePost,
   formatPostDate,
+  showsBanner,
   type VenuePost,
   type VenuePostKind,
 } from "@/lib/venue-posts";
 import { addVenuePost, deleteVenuePost } from "@/lib/venue-posts-actions";
 
-const EMPTY_FORM = { title: "", description: "", date: "", link: "" };
+const EMPTY_FORM = { title: "", description: "", date: "", link: "", eventId: "" };
+
+const NO_EVENTS: VenuePost[] = [];
 
 /** A banner picked for the new post: the file to upload, and an address to preview it with. */
 type PickedBanner = { blob: Blob; previewUrl: string };
@@ -35,11 +40,16 @@ type PickedBanner = { blob: Blob; previewUrl: string };
 export default function VenuePostsSection({
   kind,
   initial,
+  events = NO_EVENTS,
 }: {
   kind: VenuePostKind;
   initial: VenuePost[];
+  /** Open calls only: the venue's events, one of which the new open call can be connected to. */
+  events?: VenuePost[];
 }) {
   const labels = VENUE_POST_KINDS[kind];
+  const router = useRouter();
+  const eventTitle = (id: string | null) => events.find((event) => event.id === id)?.title;
   const [posts, setPosts] = useState(() => [...initial].sort(byDate));
   const [form, setForm] = useState(EMPTY_FORM);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -89,6 +99,8 @@ export default function VenuePostsSection({
         setForm(EMPTY_FORM);
         setLinkOpen(false);
         replaceBanner(null);
+        // Reloads the dashboard data, so a new event can be picked in the open call form.
+        if (kind === "event") router.refresh();
       } else {
         setError(result.error);
       }
@@ -100,8 +112,11 @@ export default function VenuePostsSection({
     setError(null);
     startTransition(async () => {
       const result = await deleteVenuePost(post.id);
-      if (result.ok) setPosts((current) => current.filter((p) => p.id !== post.id));
-      else setError(result.error);
+      if (result.ok) {
+        setPosts((current) => current.filter((p) => p.id !== post.id));
+        // Reloads the dashboard data: the events to pick from, and the applications that went with the post.
+        router.refresh();
+      } else setError(result.error);
     });
   };
 
@@ -116,10 +131,10 @@ export default function VenuePostsSection({
           {posts.map((post) => (
             <li key={post.id} className="flex items-start gap-3 rounded-2xl border border-border p-4">
               <div className="min-w-0 flex-1">
-                {labels.banner ? (
+                {showsBanner(post) ? (
                   <EventBanner
                     title={post.title}
-                    tag={formatPostDate(post.date)}
+                    tag={bannerTag(post)}
                     imageUrl={post.bannerUrl}
                     seed={post.id}
                     className="h-40"
@@ -134,11 +149,17 @@ export default function VenuePostsSection({
                 )}
                 <p
                   className={`text-sm break-words whitespace-pre-line text-muted-foreground ${
-                    labels.banner ? "mt-3" : "mt-1"
+                    showsBanner(post) ? "mt-3" : "mt-1"
                   }`}
                 >
                   {post.description}
                 </p>
+                {eventTitle(post.eventId) && (
+                  <p className="mt-2 text-sm">
+                    <span className="text-muted-foreground">For the event:</span>{" "}
+                    <span className="font-medium break-words">{eventTitle(post.eventId)}</span>
+                  </p>
+                )}
                 {post.link && <PostLink href={post.link} label={labels.linkLabel} />}
               </div>
               <button
@@ -229,37 +250,57 @@ export default function VenuePostsSection({
             </div>
           </div>
         )}
-        {labels.banner && (
+        {kind === "open_call" && events.length > 0 && (
           <div>
-            <p className="text-sm text-muted-foreground">
-              Banner (optional). This is how the {labels.singular} will look on your profile.
-            </p>
-            <EventBanner
-              title={form.title.trim() || `Your ${labels.singular} title`}
-              tag={form.date ? formatPostDate(form.date) : labels.dateLabel}
-              imageUrl={banner?.previewUrl}
-              seed={kind}
-              className="mt-2 h-48"
+            <label htmlFor={id("event")} className="text-sm text-muted-foreground">
+              Connected event (optional). Artists you accept are listed on this event.
+            </label>
+            <select
+              id={id("event")}
+              value={form.eventId}
+              onChange={(e) => setField("eventId", e.target.value)}
+              className={`${FIELD_CLASS} h-11 rounded-full`}
             >
-              <div className="absolute top-3 right-3 flex gap-2">
-                {banner && (
-                  <RemoveImageButton
-                    label="Remove banner"
-                    disabled={pending}
-                    onClick={() => replaceBanner(null)}
-                    className="size-9"
-                  />
-                )}
-                <PickImageButton
-                  label={banner ? "Change banner" : "Add banner"}
-                  disabled={pending}
-                  onPick={onPickBanner}
-                  className="size-9"
-                />
-              </div>
-            </EventBanner>
+              <option value="">No event</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.title} ({formatPostDate(event.date)})
+                </option>
+              ))}
+            </select>
           </div>
         )}
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {labels.banner
+              ? `Banner (optional). This is how the ${labels.singular} will look on your profile.`
+              : `Banner (optional). Without a picture, the ${labels.singular} is shown as text only.`}
+          </p>
+          <EventBanner
+            title={form.title.trim() || `Your ${labels.singular} title`}
+            tag={form.date ? bannerTag({ kind, date: form.date }) : labels.dateLabel}
+            imageUrl={banner?.previewUrl}
+            seed={kind}
+            className="mt-2 h-48"
+          >
+            <div className="absolute top-3 right-3 flex gap-2">
+              {banner && (
+                <RemoveImageButton
+                  label="Remove banner"
+                  disabled={pending}
+                  onClick={() => replaceBanner(null)}
+                  className="size-9"
+                />
+              )}
+              <PickImageButton
+                label={banner ? "Change banner" : "Add banner"}
+                disabled={pending}
+                onPick={onPickBanner}
+                className="size-9"
+              />
+            </div>
+          </EventBanner>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"

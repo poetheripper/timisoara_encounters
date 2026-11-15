@@ -16,6 +16,8 @@ export type VenuePost = {
   link: string | null;
   /** Banner picture; null when there is none (a generated color is shown instead). */
   bannerUrl: string | null;
+  /** Open calls only: the venue's event the call looks for artists for; null when there is none. */
+  eventId: string | null;
 };
 
 export const VENUE_POST_KINDS: Record<
@@ -28,7 +30,7 @@ export const VENUE_POST_KINDS: Record<
     empty: string;
     /** Text of the button that opens the post's link. */
     linkLabel: string;
-    /** Whether posts of this kind are shown with a banner picture. */
+    /** Whether posts of this kind are always shown with a banner (a generated color without a picture). */
     banner: boolean;
   }
 > = {
@@ -55,6 +57,19 @@ export const VENUE_POST_KINDS: Record<
 export const POST_TITLE_MAX = 80;
 export const POST_DESCRIPTION_MAX = 1000;
 export const POST_LINK_MAX = 300;
+
+/** Events always have a banner; an open call has one only when the venue added a picture. */
+export function showsBanner(post: Pick<VenuePost, "kind" | "bannerUrl">) {
+  return VENUE_POST_KINDS[post.kind].banner || post.bannerUrl !== null;
+}
+
+/** The pill on a post's banner: the day of an event, or "Deadline: …" for an open call. */
+export function bannerTag(post: Pick<VenuePost, "kind" | "date">) {
+  const date = formatPostDate(post.date);
+  return post.kind === "open_call" ? `${VENUE_POST_KINDS.open_call.dateLabel}: ${date}` : date;
+}
+
+export const POST_ID_PATTERN = /^[0-9a-f-]{36}$/i;
 
 export function isVenuePostKind(kind: unknown): kind is VenuePostKind {
   return kind === "event" || kind === "open_call";
@@ -101,7 +116,13 @@ export function cleanVenuePost(
     return { ok: false, error: "Check the link: it doesn't look like a web address." };
   }
 
-  return { ok: true, post: { kind: input.kind, title, description, date, link } };
+  // Only open calls are connected to an event. That the event is the venue's own is checked when saving.
+  const eventId =
+    input.kind === "open_call" && typeof input.eventId === "string" && POST_ID_PATTERN.test(input.eventId)
+      ? input.eventId
+      : null;
+
+  return { ok: true, post: { kind: input.kind, title, description, date, link, eventId } };
 }
 
 /** "YYYY-MM-DD" shown as e.g. "Sat, 15 Nov 2026". */

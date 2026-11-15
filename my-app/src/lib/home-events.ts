@@ -2,6 +2,7 @@
 // the events venues publish from their dashboard, plus the test events from src/lib/events.ts.
 
 import { EVENTS, eventBackground } from "@/lib/events";
+import type { AccountLink } from "@/lib/open-calls";
 
 export type HomeEvent = {
   id: string;
@@ -20,6 +21,8 @@ export type HomeEvent = {
   place: string | null;
   /** Who organises it; `href` leads to their profile when they have one. */
   host: { name: string; href: string | null } | null;
+  /** The artists the venue accepted through an open call connected to this event. */
+  artists: AccountLink[];
   /** Tickets or another reference website. */
   link: string | null;
   /** Chosen by the administrator: null = not featured, lower numbers come first in the carousel. */
@@ -45,6 +48,7 @@ function testEvents(): HomeEvent[] {
     background: eventBackground(event),
     place: event.location,
     host: { name: event.provider, href: null },
+    artists: [],
     link: null,
     featured: event.featured ?? null,
   }));

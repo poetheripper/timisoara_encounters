@@ -3,6 +3,13 @@
 
 import type { AccountType } from "@/lib/auth-helpers";
 
+/** A public account to mention: its name and the address of its profile. */
+export type AccountLink = { name: string; href: string };
+
+export function openCallHref(id: string) {
+  return `/open-calls/${id}`;
+}
+
 /** An open call as the open calls page lists it: the venue's post plus who posted it. */
 export type OpenCall = {
   id: string;
@@ -11,10 +18,19 @@ export type OpenCall = {
   /** Deadline, as a local calendar day "YYYY-MM-DD". */
   date: string;
   link: string | null;
+  /** Banner picture; null when the venue added none. */
+  bannerUrl: string | null;
   /** When the venue posted it (ISO timestamp). */
   createdAt: string;
-  venue: { name: string; href: string } | null;
+  venue: AccountLink | null;
 };
+
+/** The venue's answer to an application. */
+export type ApplicationStatus = "pending" | "accepted" | "declined";
+
+export function applicationStatus(value: unknown): ApplicationStatus {
+  return value === "accepted" || value === "declined" ? value : "pending";
+}
 
 /** Who is looking at the open calls page. Only artists can apply; only venues can post. */
 export type OpenCallViewer = { role: AccountType } | null;
@@ -23,11 +39,34 @@ export type OpenCallViewer = { role: AccountType } | null;
 export type OpenCallApplication = {
   id: string;
   postTitle: string;
-  artist: { name: string; href: string };
+  artist: AccountLink;
   message: string | null;
+  status: ApplicationStatus;
   /** When the artist applied (ISO timestamp). */
   createdAt: string;
 };
+
+/** A venue's answer to one of the artist's applications. */
+export type ApplicationResponse = {
+  id: string;
+  accepted: boolean;
+  call: { id: string; title: string };
+  venue: AccountLink | null;
+  /** The event connected to the open call, where an accepted artist is listed. */
+  eventTitle: string | null;
+  /** When the venue answered (ISO timestamp). */
+  respondedAt: string;
+};
+
+/**
+ * One line in the Notifications section of a dashboard. `at` is when it happened (ISO timestamp);
+ * whatever is newer than the last "Mark all as read" counts as new.
+ */
+export type DashboardNotification = { at: string } & (
+  | { kind: "application"; application: OpenCallApplication }
+  | { kind: "open_call"; call: OpenCall }
+  | { kind: "response"; response: ApplicationResponse }
+);
 
 export const APPLICATION_MESSAGE_MAX = 500;
 

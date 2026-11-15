@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { CheckIcon, MegaphoneIcon, PlusIcon, SearchIcon, SendIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon, MegaphoneIcon, PlusIcon, SearchIcon, SendIcon, XIcon } from "lucide-react";
 import { FilterChip } from "@/components/EventSearchControls";
-import PostLink from "@/components/PostLink";
 import { ErrorText, FIELD_CLASS } from "@/components/UserDashboard";
 import {
   APPLICATION_MESSAGE_MAX,
   DEADLINE_FILTERS,
+  openCallHref,
   searchOpenCalls,
+  type ApplicationStatus,
   type DeadlineFilterId,
   type OpenCall,
   type OpenCallViewer,
@@ -82,24 +83,108 @@ function ApplyForm({ call, onApplied }: { call: OpenCall; onApplied: () => void 
   );
 }
 
-function OpenCallCard({
+/**
+ * The bottom of an open call: applying for artists (or the venue's answer once they applied).
+ * Everyone else is told why there is no button.
+ */
+export function OpenCallApply({
   call,
   viewer,
-  applied,
+  status,
+  closed = false,
   onApplied,
 }: {
   call: OpenCall;
   viewer: OpenCallViewer;
-  applied: boolean;
+  /** The venue's answer to the viewer's application; null when they did not apply. */
+  status: ApplicationStatus | null;
+  /** True once the deadline has passed. */
+  closed?: boolean;
+  onApplied?: () => void;
+}) {
+  // Applying here shows right away, before the page data is loaded again.
+  const [justApplied, setJustApplied] = useState(false);
+  const current = status ?? (justApplied ? "pending" : null);
+
+  if (viewer?.role !== "artist") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {closed
+          ? "The deadline of this open call has passed."
+          : viewer === null
+            ? "Log in with an artist account to apply."
+            : "Only artist accounts can apply to open calls."}
+      </p>
+    );
+  }
+  if (current === "accepted") {
+    return (
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <CheckIcon className="size-4 shrink-0" aria-hidden />
+        Your application was accepted.
+      </p>
+    );
+  }
+  if (current === "declined") {
+    return (
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <XIcon className="size-4 shrink-0" aria-hidden />
+        Your application was declined.
+      </p>
+    );
+  }
+  if (current === "pending") {
+    return (
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <CheckIcon className="size-4 shrink-0" aria-hidden />
+        You applied to this open call. The venue has not answered yet.
+      </p>
+    );
+  }
+  if (closed) {
+    return <p className="text-sm text-muted-foreground">The deadline of this open call has passed.</p>;
+  }
+  return (
+    <ApplyForm
+      call={call}
+      onApplied={() => {
+        setJustApplied(true);
+        onApplied?.();
+      }}
+    />
+  );
+}
+
+function OpenCallCard({
+  call,
+  viewer,
+  status,
+  onApplied,
+}: {
+  call: OpenCall;
+  viewer: OpenCallViewer;
+  status: ApplicationStatus | null;
   onApplied: () => void;
 }) {
   const labels = VENUE_POST_KINDS.open_call;
+  const href = openCallHref(call.id);
   return (
-    <li className="rounded-3xl border border-border bg-card p-6 text-left text-card-foreground">
+    <li className="overflow-hidden rounded-3xl border border-border bg-card text-left text-card-foreground">
+      {call.bannerUrl && (
+        <Link href={href} tabIndex={-1} aria-hidden className="block h-40 sm:h-52">
+          {/* eslint-disable-next-line @next/next/no-img-element -- user upload, already resized */}
+          <img src={call.bannerUrl} alt="" loading="lazy" className="size-full object-cover" />
+        </Link>
+      )}
+      <div className="p-6">
       <p className="text-xs text-muted-foreground">
         {labels.dateLabel}: {formatPostDate(call.date)}
       </p>
-      <h2 className="mt-1 text-xl font-semibold tracking-tight break-words">{call.title}</h2>
+      <h2 className="mt-1 text-xl font-semibold tracking-tight break-words">
+        <Link href={href} className="underline-offset-4 hover:underline">
+          {call.title}
+        </Link>
+      </h2>
       {call.venue && (
         <p className="mt-1 text-sm text-muted-foreground">
           Posted by{" "}
@@ -111,27 +196,19 @@ function OpenCallCard({
           </Link>
         </p>
       )}
-      <p className="mt-3 text-sm break-words whitespace-pre-line">{call.description}</p>
-      {call.link && <PostLink href={call.link} label={labels.linkLabel} />}
+      {/* The whole announcement is on the open call's own page. */}
+      <p className="mt-3 line-clamp-3 text-sm break-words whitespace-pre-line">{call.description}</p>
+      <Link
+        href={href}
+        className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4 hover:text-muted-foreground"
+      >
+        Read more
+        <ArrowRightIcon className="size-4" aria-hidden />
+      </Link>
 
-      {/* Applying is for artists only; everyone else is told why there is no button. */}
       <div className="mt-5 border-t border-border pt-4">
-        {viewer?.role === "artist" ? (
-          applied ? (
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <CheckIcon className="size-4" aria-hidden />
-              You applied to this open call.
-            </p>
-          ) : (
-            <ApplyForm call={call} onApplied={onApplied} />
-          )
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {viewer === null
-              ? "Log in with an artist account to apply."
-              : "Only artist accounts can apply to open calls."}
-          </p>
-        )}
+        <OpenCallApply call={call} viewer={viewer} status={status} onApplied={onApplied} />
+      </div>
       </div>
     </li>
   );
@@ -141,14 +218,14 @@ function OpenCallCard({
 export default function OpenCallSearch({
   calls,
   viewer,
-  appliedIds,
+  applications,
   today,
   setupNeeded,
 }: {
   calls: OpenCall[];
   viewer: OpenCallViewer;
-  /** The open calls the artist looking at the page already applied to. */
-  appliedIds: string[];
+  /** The open calls the artist looking at the page already applied to, with the venue's answer. */
+  applications: Record<string, ApplicationStatus>;
   /** "YYYY-MM-DD", worked out on the server so both renders agree on it. */
   today: string;
   /** True when the database is missing the tables this page reads. */
@@ -157,14 +234,18 @@ export default function OpenCallSearch({
   const [input, setInput] = useState("");
   const [deadlines, setDeadlines] = useState<DeadlineFilterId[]>([]);
   const [onlyNotApplied, setOnlyNotApplied] = useState(false);
-  const [applied, setApplied] = useState(appliedIds);
+  // Open calls applied to on this page, on top of the ones that came with it.
+  const [justApplied, setJustApplied] = useState<string[]>([]);
+  const hasApplied = (id: string) => id in applications || justApplied.includes(id);
   const isArtist = viewer?.role === "artist";
 
   // Unlike the event search, every open call is listed from the start and narrows while typing.
   const results = useMemo(() => {
     const found = searchOpenCalls(calls, { query: input, deadlines }, today);
-    return onlyNotApplied ? found.filter((call) => !applied.includes(call.id)) : found;
-  }, [calls, input, deadlines, today, onlyNotApplied, applied]);
+    return onlyNotApplied
+      ? found.filter((call) => !(call.id in applications || justApplied.includes(call.id)))
+      : found;
+  }, [calls, input, deadlines, today, onlyNotApplied, applications, justApplied]);
 
   const hasFilters = deadlines.length > 0 || onlyNotApplied;
   const narrowed = input.trim() !== "" || hasFilters;
@@ -258,8 +339,8 @@ export default function OpenCallSearch({
                   key={call.id}
                   call={call}
                   viewer={viewer}
-                  applied={applied.includes(call.id)}
-                  onApplied={() => setApplied((ids) => [...ids, call.id])}
+                  status={applications[call.id] ?? (hasApplied(call.id) ? "pending" : null)}
+                  onApplied={() => setJustApplied((ids) => [...ids, call.id])}
                 />
               ))}
             </ul>

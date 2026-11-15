@@ -2,7 +2,7 @@
 
 import { IMAGE_MAX_BYTES, PROFILE_IMAGES_BUCKET, imageFolder } from "@/lib/profile";
 import { NOT_A_VENUE, SAVE_FAILED, currentVenueId } from "@/lib/venue-auth";
-import { cleanVenuePost, type VenuePost } from "@/lib/venue-posts";
+import { POST_ID_PATTERN, cleanVenuePost, type VenuePost } from "@/lib/venue-posts";
 import { createClient } from "@/utils/supabase/server";
 
 // Banners live next to the venue's profile pictures, one file per post.
@@ -40,6 +40,19 @@ export async function addVenuePost(
   }
 
   const supabase = createClient();
+  const { eventId, ...fields } = cleaned.post;
+  if (eventId) {
+    // An open call can only be connected to one of the venue's own events.
+    const { data: event } = await supabase
+      .from("venue_posts")
+      .select("id")
+      .eq("id", eventId)
+      .eq("venue_id", venueId)
+      .eq("kind", "event")
+      .maybeSingle();
+    if (!event) return { ok: false, error: "That event no longer exists. Pick another one." };
+  }
+
   // The id is chosen here so the banner can be stored under it before the post is saved.
   const id = crypto.randomUUID();
   let bannerUrl: string | null = null;
@@ -57,7 +70,14 @@ export async function addVenuePost(
 
   const { error } = await supabase
     .from("venue_posts")
-    .insert({ id, venue_id: venueId, ...cleaned.post, banner_url: bannerUrl });
+    .insert({
+      id,
+      venue_id: venueId,
+      ...fields,
+      banner_url: bannerUrl,
+      // Left out when empty, so posting keeps working before the event_id column exists.
+      ...(eventId ? { event_id: eventId } : {}),
+    });
   if (error) {
     console.error("addVenuePost error:", error.message);
     // Don't leave the banner of a post that was never saved behind.
@@ -73,7 +93,7 @@ export async function deleteVenuePost(
   const venueId = await currentVenueId();
   if (!venueId) return NOT_A_VENUE;
   // Post ids are UUIDs; anything else must not end up in a storage path.
-  if (!/^[0-9a-f-]{36}$/i.test(String(id))) return { ok: false, error: "That request was not valid." };
+  if (!POST_ID_PATTERN.test(String(id))) return { ok: false, error: "That request was not valid." };
 
   const supabase = createClient();
   const { error } = await supabase

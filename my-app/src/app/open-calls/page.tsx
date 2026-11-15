@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import OpenCallSearch from "@/components/OpenCallSearch";
-import { currentAccount, loadAppliedCallIds, loadOpenCalls } from "@/lib/open-calls-data";
+import { currentAccount, loadOpenCalls, loadOwnApplications } from "@/lib/open-calls-data";
 import { todayDay } from "@/lib/venue-posts";
 
 async function OpenCallsContent() {
@@ -9,13 +9,13 @@ async function OpenCallsContent() {
   await connection();
   const [account, openCalls] = await Promise.all([currentAccount(), loadOpenCalls()]);
   // Only artists apply, so only they have applications to look up.
-  const applied = account?.role === "artist" ? await loadAppliedCallIds(account.id) : null;
+  const applied = account?.role === "artist" ? await loadOwnApplications(account.id) : null;
 
   return (
     <OpenCallSearch
       calls={openCalls.calls}
       viewer={account ? { role: account.role } : null}
-      appliedIds={applied?.ids ?? []}
+      applications={applied?.statuses ?? {}}
       today={todayDay()}
       setupNeeded={openCalls.error || Boolean(applied?.error)}
     />

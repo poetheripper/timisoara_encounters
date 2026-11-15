@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { placeholderBackground } from "@/components/EventBanner";
 import { displayName, profileHref } from "@/lib/accounts";
 import type { HomeEvent } from "@/lib/home-events";
+import { loadEventArtists } from "@/lib/open-calls-data";
 import { storedVenueLocation } from "@/lib/venue-location";
 import { formatPostDate, todayDay } from "@/lib/venue-posts";
 import { createClient } from "@/utils/supabase/server";
@@ -46,6 +47,8 @@ export async function loadVenueEvents(): Promise<HomeEvent[]> {
     if (error) console.error("loadVenueEvents error (without featured):", error.message);
   }
 
+  const artists = await loadEventArtists((data ?? []).map((row) => row.id));
+
   return (data ?? []).map((row) => {
     const venue = Array.isArray(row.venue) ? (row.venue[0] ?? null) : row.venue;
     const hostName = venue ? displayName(venue.name, venue.username) : null;
@@ -63,6 +66,7 @@ export async function loadVenueEvents(): Promise<HomeEvent[]> {
         venue && hostName
           ? { name: hostName, href: profileHref(venue.username || venue.id) }
           : null,
+      artists: artists[row.id] ?? [],
       link: row.link ?? null,
       featured: typeof row.featured === "number" ? row.featured : null,
     };

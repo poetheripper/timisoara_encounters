@@ -8,8 +8,13 @@ import VenueScheduleSection from "@/components/VenueScheduleSection";
 import { profileHref } from "@/lib/accounts";
 import { requireRole, type AccountType } from "@/lib/auth-helpers";
 import { storedContactLinks } from "@/lib/contact";
-import { isNewSince } from "@/lib/open-calls";
-import { loadApplications, loadNotificationsSeenAt, loadOpenCalls } from "@/lib/open-calls-data";
+import { isNewSince, type DashboardNotification } from "@/lib/open-calls";
+import {
+  loadApplications,
+  loadNotificationsSeenAt,
+  loadOpenCalls,
+  loadResponses,
+} from "@/lib/open-calls-data";
 import { storedVenueLocation } from "@/lib/venue-location";
 import { loadVenuePosts } from "@/lib/venue-posts-data";
 import { storedVenueSchedule } from "@/lib/venue-schedule";
@@ -20,7 +25,7 @@ import { createClient } from "@/utils/supabase/server";
  * dashboard, plus the contact links. Venues also manage their location, schedule, open calls
  * and events.
  * Both get notifications: a venue when an artist applies to one of its open calls, an artist
- * when a venue posts an open call.
+ * when a venue posts an open call or answers one of their applications.
  * Sends other roles to their own dashboard.
  */
 export default async function CreatorDashboard({
@@ -33,7 +38,7 @@ export default async function CreatorDashboard({
   const account = await requireRole([role]);
 
   const supabase = createClient();
-  const [{ data, error: profileError }, venuePosts, seen, openCalls] = await Promise.all([
+  const [{ data, error: profileError }, venuePosts, seen, openCalls, answered] = await Promise.all([
     supabase
       .from("users")
       .select("name, username, bio, avatar_url, cover_url, contact_links, location, schedule")
@@ -42,20 +47,29 @@ export default async function CreatorDashboard({
     role === "venue" ? loadVenuePosts(account.sub) : null,
     loadNotificationsSeenAt(account.sub),
     role === "artist" ? loadOpenCalls() : null,
+    role === "artist" ? loadResponses(account.sub) : null,
   ]);
   // Applications are looked up through the venue's own open calls.
   const received = venuePosts
     ? await loadApplications(venuePosts.posts.filter((post) => post.kind === "open_call"))
     : null;
-  const applications = received?.applications ?? [];
-  // Newest first, like the applications.
-  const postedCalls = [...(openCalls?.calls ?? [])]
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 20);
-  const newCount = [...applications, ...postedCalls].filter((item) =>
-    isNewSince(item.createdAt, seen.seenAt),
-  ).length;
-  const notificationsError = seen.error || received?.error || openCalls?.error;
+  // Newest first. Every application and answer is kept; of the open calls, the 20 latest.
+  const byNewest = (a: DashboardNotification, b: DashboardNotification) =>
+    new Date(b.at).getTime() - new Date(a.at).getTime();
+  const notifications: DashboardNotification[] = [
+    ...(received?.applications ?? []).map(
+      (application): DashboardNotification => ({ kind: "application", at: application.createdAt, application }),
+    ),
+    ...(answered?.responses ?? []).map(
+      (response): DashboardNotification => ({ kind: "response", at: response.respondedAt, response }),
+    ),
+    ...(openCalls?.calls ?? [])
+      .map((call): DashboardNotification => ({ kind: "open_call", at: call.createdAt, call }))
+      .sort(byNewest)
+      .slice(0, 20),
+  ].sort(byNewest);
+  const newCount = notifications.filter((item) => isNewSince(item.at, seen.seenAt)).length;
+  const notificationsError = seen.error || received?.error || openCalls?.error || answered?.error;
   const error = profileError || venuePosts?.error;
 
   // Fails until the SQL files in supabase/ have been run; the dashboard then says so.
@@ -97,9 +111,9 @@ export default async function CreatorDashboard({
             role="alert"
             className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-foreground"
           >
-            Notifications can&apos;t be loaded yet: run{" "}
-            <code className="rounded bg-muted px-1 py-0.5">supabase/open_calls.sql</code> in the
-            Supabase SQL editor, then reload this page.
+            Notifications can&apos;t be fully loaded yet: run{" "}
+            <code className="rounded bg-muted px-1 py-0.5">supabase/open_calls.sql</code> (again, if
+            you ran an older version) in the Supabase SQL editor, then reload this page.
           </p>
         )}
         <ProfileSection
@@ -122,6 +136,7 @@ export default async function CreatorDashboard({
               <VenuePostsSection
                 kind="open_call"
                 initial={venuePosts.posts.filter((post) => post.kind === "open_call")}
+                events={venuePosts.posts.filter((post) => post.kind === "event")}
               />
             </div>
             <VenuePostsSection
@@ -130,12 +145,7 @@ export default async function CreatorDashboard({
             />
           </>
         )}
-        <NotificationsSection
-          role={role}
-          applications={applications}
-          openCalls={postedCalls}
-          seenAt={seen.seenAt}
-        />
+        <NotificationsSection role={role} notifications={notifications} seenAt={seen.seenAt} />
       </div>
     </main>
   );
