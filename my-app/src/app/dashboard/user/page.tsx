@@ -7,14 +7,14 @@ async function UserDashboardContent() {
   const user = await requireRole(["user"]);
 
   const supabase = createClient();
-  const [profileResult, savedResult] = await Promise.all([
-    supabase.from("users").select("name, interests, username, bio, avatar_url, cover_url").eq("id", user.sub).maybeSingle(),
-    supabase.from("saved_events").select("event_id").eq("user_id", user.sub),
-  ]);
+  const profileResult = await supabase
+    .from("users")
+    .select("name, interests, username, bio, avatar_url, cover_url")
+    .eq("id", user.sub)
+    .maybeSingle();
 
-  // These fail until supabase/user_dashboard.sql has been run; the dashboard then says so.
+  // This fails until supabase/user_dashboard.sql has been run; the dashboard then says so.
   if (profileResult.error) console.error("Dashboard profile error:", profileResult.error.message);
-  if (savedResult.error) console.error("Dashboard saved events error:", savedResult.error.message);
 
   const profile: UserProfile = {
     // The name saved in the dashboard wins over the one that came from the login.
@@ -25,7 +25,6 @@ async function UserDashboardContent() {
     avatarUrl: profileResult.data?.avatar_url ?? null,
     coverUrl: profileResult.data?.cover_url ?? null,
     interests: profileResult.data?.interests ?? [],
-    savedEventIds: (savedResult.data ?? []).map((row) => row.event_id),
   };
 
   return (
@@ -34,10 +33,7 @@ async function UserDashboardContent() {
       <p className="text-muted-foreground mt-1">
         Welcome, {profile.name || user.email}
       </p>
-      <UserDashboard
-        profile={profile}
-        setupNeeded={Boolean(profileResult.error || savedResult.error)}
-      />
+      <UserDashboard profile={profile} setupNeeded={Boolean(profileResult.error)} />
     </main>
   );
 }

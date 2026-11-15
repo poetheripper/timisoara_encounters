@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { Menu } from "@base-ui/react/menu";
 import { usePathname } from "next/navigation";
-import { HomeIcon, LogOutIcon, MapIcon, MenuIcon, SearchIcon, SettingsIcon, UserIcon } from "lucide-react";
+import { BookmarkIcon, HomeIcon, LogOutIcon, MapIcon, MenuIcon, SearchIcon, SettingsIcon, UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RoleLoginCard from "@/components/RoleLoginCard";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -150,6 +150,10 @@ export default function SiteHeader() {
                   >
                     <SettingsIcon className="size-4" />
                     Account settings
+                  </Menu.LinkItem>
+                  <Menu.LinkItem render={<Link href="/saved" />} className={MENU_ITEM_CLASS}>
+                    <BookmarkIcon className="size-4" />
+                    Saved events
                   </Menu.LinkItem>
                 </Menu.Popup>
               </Menu.Positioner>
