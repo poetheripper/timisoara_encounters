@@ -27,14 +27,14 @@ import EventSearchControls, {
   useEventSearch,
 } from "@/components/EventSearchControls";
 import SaveEventButton, { useSavedEvents } from "@/components/SaveEventButton";
-import { eventDate, type EventItem } from "@/lib/events";
+import { eventDate, isPinned, type EventItem, type PinnedEvent } from "@/lib/events";
 import { API_KEY, MAP_ID, PIN_COLORS, TIMISOARA, useIsDark } from "@/lib/google-maps";
 import { ACCENT_FILL_CLASS } from "@/lib/styles";
 
 const DEFAULT_ZOOM = 14;
 // The map is about places, so it does not offer the "Artist" category as a filter.
 const MAP_HIDDEN_CATEGORIES = ["Artist"];
-const NO_EVENTS: EventItem[] = [];
+const NO_EVENTS: PinnedEvent[] = [];
 
 
 // ---- Route planning -------------------------------------------------------------------------
@@ -76,7 +76,7 @@ function squaredDistance(a: LatLng, b: LatLng) {
  * Visiting order: always go to the closest event not visited yet.
  * Starts from `start` (the user's location) when given, otherwise at the first event.
  */
-function orderStops(events: EventItem[], start: LatLng | null) {
+function orderStops(events: PinnedEvent[], start: LatLng | null) {
   if (events.length < (start ? 2 : 3)) return events;
   const remaining = start ? events.slice() : events.slice(1);
   const ordered = start ? [] : [events[0]];
@@ -292,11 +292,13 @@ function EventDetails({
           <StoreIcon className="size-4 shrink-0" aria-hidden />
           <dd>{event.provider}</dd>
         </div>
-        <div className="flex items-center gap-2">
-          <dt className="sr-only">Artist</dt>
-          <MicIcon className="size-4 shrink-0" aria-hidden />
-          <dd>{event.artist}</dd>
-        </div>
+        {event.artist && (
+          <div className="flex items-center gap-2">
+            <dt className="sr-only">Artist</dt>
+            <MicIcon className="size-4 shrink-0" aria-hidden />
+            <dd>{event.artist}</dd>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <dt className="sr-only">Location</dt>
           <MapPinIcon className="size-4 shrink-0" aria-hidden />
@@ -312,13 +314,14 @@ function EventDetails({
   );
 }
 
-export default function EventMap() {
-  const search = useEventSearch();
+export default function EventMap({ venueEvents }: { venueEvents: EventItem[] }) {
+  const search = useEventSearch(venueEvents);
   const saved = useSavedEvents();
   const isDark = useIsDark();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const results = search.results ?? NO_EVENTS;
+  // Events of venues that have not put a pin on the map can't be shown here.
+  const results = useMemo(() => search.results?.filter(isPinned) ?? NO_EVENTS, [search.results]);
   // Derived from the results, so the details close by themselves when a new search drops the event.
   const selected = results.find((event) => event.id === selectedId) ?? null;
   const pin = isDark ? PIN_COLORS.dark : PIN_COLORS.light;
@@ -479,7 +482,8 @@ export default function EventMap() {
       <p className="mt-8 text-sm text-muted-foreground" aria-live="polite">
         {search.results === null
           ? "Type something and press Enter, or pick a filter, to see events on the map."
-          : searchSummary(search)}
+          : // Counts what is on the map: events without a pin are left out.
+            searchSummary({ ...search, results })}
       </p>
 
       {saved.error && (

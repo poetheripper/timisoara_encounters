@@ -196,6 +196,14 @@ function OpenCallCard({
           </Link>
         </p>
       )}
+      {call.event && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          For the event:{" "}
+          <span className="font-medium break-words text-foreground">
+            {call.event.title} · {formatPostDate(call.event.date)}
+          </span>
+        </p>
+      )}
       {/* The whole announcement is on the open call's own page. */}
       <p className="mt-3 line-clamp-3 text-sm break-words whitespace-pre-line">{call.description}</p>
       <Link

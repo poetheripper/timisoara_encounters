@@ -2,6 +2,7 @@
 
 import { auth0 } from "@/lib/auth0";
 import { EVENTS } from "@/lib/events";
+import { POST_ID_PATTERN } from "@/lib/venue-posts";
 import { createClient } from "@/utils/supabase/server";
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
@@ -35,11 +36,15 @@ export async function setEventSaved(eventId: string, saved: boolean): Promise<Sa
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "Log in to save events." };
 
-  if (!EVENTS.some((event) => event.id === eventId)) {
-    return { ok: false, error: "That event no longer exists." };
+  const supabase = createClient();
+  // Removing always works; saving needs the event to exist: a test event, or one a venue published.
+  if (saved && !EVENTS.some((event) => event.id === eventId)) {
+    const found = POST_ID_PATTERN.test(String(eventId))
+      ? await supabase.from("venue_posts").select("id").eq("id", eventId).eq("kind", "event").maybeSingle()
+      : null;
+    if (!found?.data) return { ok: false, error: "That event no longer exists." };
   }
 
-  const supabase = createClient();
   const { error } = saved
     ? await supabase
         .from("saved_events")

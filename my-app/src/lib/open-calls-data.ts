@@ -57,36 +57,62 @@ type OpenCallRow = {
 const OPEN_CALL_COLUMNS =
   "id, title, description, date, link, banner_url, created_at, venue:users(id, name, username)";
 
-function openCall(row: OpenCallRow): OpenCall {
-  const venue = single(row.venue);
-  return {
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    date: row.date,
-    link: row.link ?? null,
-    bannerUrl: row.banner_url ?? null,
-    createdAt: row.created_at,
-    venue: venue ? accountLink(venue) : null,
-  };
+type ConnectedEvent = { title: string; date: string };
+
+/** Open call rows as the pages show them, each with the event it is connected to. */
+async function openCalls(rows: OpenCallRow[]): Promise<OpenCall[]> {
+  const eventIds = [...new Set(rows.flatMap((row) => (row.event_id ? [row.event_id] : [])))];
+  const events = new Map<string, ConnectedEvent>();
+  if (eventIds.length > 0) {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("venue_posts")
+      .select("id, title, date")
+      .in("id", eventIds)
+      .eq("kind", "event");
+    if (error) console.error("openCalls events error:", error.message);
+    for (const event of data ?? []) events.set(event.id, { title: event.title, date: event.date });
+  }
+
+  return rows.map((row) => {
+    const venue = single(row.venue);
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      date: row.date,
+      link: row.link ?? null,
+      bannerUrl: row.banner_url ?? null,
+      createdAt: row.created_at,
+      venue: venue ? accountLink(venue) : null,
+      event: (row.event_id && events.get(row.event_id)) || null,
+    };
+  });
 }
 
 /** Every open call whose deadline has not passed, soonest deadline first. */
 export async function loadOpenCalls() {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("venue_posts")
-    .select(OPEN_CALL_COLUMNS)
-    .eq("kind", "open_call")
-    .gte("date", todayDay())
-    .order("date")
-    .returns<OpenCallRow[]>();
-  if (error) console.error("loadOpenCalls error:", error.message);
+  const query = (columns: string) =>
+    supabase
+      .from("venue_posts")
+      .select(columns)
+      .eq("kind", "open_call")
+      .gte("date", todayDay())
+      .order("date")
+      .returns<OpenCallRow[]>();
 
-  return { calls: (data ?? []).map(openCall), error: Boolean(error) };
+  let { data, error } = await query(`${OPEN_CALL_COLUMNS}, event_id`);
+  if (error) {
+    // Most likely supabase/open_calls.sql has not been run again yet: list the calls without their event.
+    console.error("loadOpenCalls error:", error.message);
+    ({ data, error } = await query(OPEN_CALL_COLUMNS));
+    if (error) console.error("loadOpenCalls error (without event_id):", error.message);
+  }
+  return { calls: await openCalls(data ?? []), error: Boolean(error) };
 }
 
-/** One open call for its own page, with the event it is connected to. `call` is null when it doesn't exist. */
+/** One open call for its own page. `call` is null when it doesn't exist. */
 export async function loadOpenCall(id: string) {
   const supabase = createClient();
   const query = (columns: string) =>
@@ -105,22 +131,9 @@ export async function loadOpenCall(id: string) {
     ({ data, error } = await query(OPEN_CALL_COLUMNS));
     if (error) console.error("loadOpenCall error (without event_id):", error.message);
   }
-  if (!data) return { call: null, event: null, error: Boolean(error) };
-
-  let event: { title: string; date: string } | null = null;
-  if (data.event_id) {
-    const found = await supabase
-      .from("venue_posts")
-      .select("title, date")
-      .eq("id", data.event_id)
-      .eq("kind", "event")
-      .maybeSingle();
-    if (found.error) console.error("loadOpenCall event error:", found.error.message);
-    event = found.data ?? null;
-  }
-  return { call: openCall(data), event, error: false };
+  if (!data) return { call: null, error: Boolean(error) };
+  return { call: (await openCalls([data]))[0], error: false };
 }
-
 
 /**
  * The open calls an artist applied to, with the venue's answer, by open call id.

@@ -10,10 +10,11 @@ export type EventItem = {
   description: string;
   /** Who organises / offers the event. */
   provider: string;
+  /** Empty when no artist is known (yet). */
   artist: string;
   location: string;
-  /** Where the event is pinned on the map. */
-  coordinates: { lat: number; lng: number };
+  /** Where the event is pinned on the map; null when its venue has not put a pin on the map. */
+  coordinates: { lat: number; lng: number } | null;
   /** Local calendar day, "YYYY-MM-DD". */
   date: string;
   /** Optional CSS background. When missing, a color is generated from the event's position. */
@@ -21,6 +22,13 @@ export type EventItem = {
   /** Set a number to feature this event in the homepage carousel; lower numbers come first. */
   featured?: number;
 };
+
+/** An event that can be shown on the map. */
+export type PinnedEvent = EventItem & { coordinates: { lat: number; lng: number } };
+
+export function isPinned(event: EventItem): event is PinnedEvent {
+  return event.coordinates !== null;
+}
 
 // Test data is dated relative to today so the time filters always have something to match.
 function daysFromToday(days: number) {
@@ -106,7 +114,12 @@ export const EVENTS: EventItem[] = [
   },
 ];
 
-/** Every category in use, in first-seen order. */
+/** The events venues published (see src/lib/search-events-data.ts) followed by the test events. */
+export function allEvents(venueEvents: EventItem[]) {
+  return [...venueEvents, ...EVENTS];
+}
+
+/** Every category in use, in first-seen order. Venues pick one of these for each event they post. */
 export const CATEGORIES: string[] = [...new Set(EVENTS.map((e) => e.category))];
 
 export const TIME_FILTERS = [

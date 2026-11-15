@@ -40,7 +40,7 @@ export async function addVenuePost(
   }
 
   const supabase = createClient();
-  const { eventId, ...fields } = cleaned.post;
+  const { eventId, category, ...fields } = cleaned.post;
   if (eventId) {
     // An open call can only be connected to one of the venue's own events.
     const { data: event } = await supabase
@@ -77,11 +77,21 @@ export async function addVenuePost(
       banner_url: bannerUrl,
       // Left out when empty, so posting keeps working before the event_id column exists.
       ...(eventId ? { event_id: eventId } : {}),
+      // Only events have one, so open calls keep working before the category column exists.
+      ...(category ? { category } : {}),
     });
   if (error) {
     console.error("addVenuePost error:", error.message);
     // Don't leave the banner of a post that was never saved behind.
     if (bannerUrl) await supabase.storage.from(PROFILE_IMAGES_BUCKET).remove([bannerPath(venueId, id)]);
+    // 42703 / PGRST204: a column is missing because its SQL file has not been run yet.
+    if (error.code === "42703" || error.code === "PGRST204") {
+      return {
+        ok: false,
+        error:
+          "The database is missing a column. Run supabase/event_categories.sql and supabase/open_calls.sql in the Supabase SQL editor, then try again.",
+      };
+    }
     return SAVE_FAILED;
   }
   return { ok: true, post: { id, ...cleaned.post, bannerUrl } };

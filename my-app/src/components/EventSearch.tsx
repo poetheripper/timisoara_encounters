@@ -46,11 +46,13 @@ function EventCard({
             <StoreIcon className="size-4 shrink-0" aria-hidden />
             <dd>{event.provider}</dd>
           </div>
-          <div className="flex items-center gap-2">
-            <dt className="sr-only">Artist</dt>
-            <MicIcon className="size-4 shrink-0" aria-hidden />
-            <dd>{event.artist}</dd>
-          </div>
+          {event.artist && (
+            <div className="flex items-center gap-2">
+              <dt className="sr-only">Artist</dt>
+              <MicIcon className="size-4 shrink-0" aria-hidden />
+              <dd>{event.artist}</dd>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <dt className="sr-only">Location</dt>
             <MapPinIcon className="size-4 shrink-0" aria-hidden />
@@ -75,8 +77,8 @@ function EventCard({
   );
 }
 
-export default function EventSearch() {
-  const search = useEventSearch();
+export default function EventSearch({ venueEvents }: { venueEvents: EventItem[] }) {
+  const search = useEventSearch(venueEvents);
   const { results } = search;
   const saved = useSavedEvents();
 

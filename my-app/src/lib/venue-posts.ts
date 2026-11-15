@@ -2,6 +2,7 @@
 // Shared by the venue dashboard, the public profile page and the server actions.
 
 import { webAddress } from "@/lib/contact";
+import { CATEGORIES } from "@/lib/events";
 
 export type VenuePostKind = "event" | "open_call";
 
@@ -16,6 +17,11 @@ export type VenuePost = {
   link: string | null;
   /** Banner picture; null when there is none (a generated color is shown instead). */
   bannerUrl: string | null;
+  /**
+   * Events only: one of the search categories (src/lib/events.ts), so the event can be found in
+   * the search and on the map. Null for open calls, and for events posted before venues picked one.
+   */
+  category: string | null;
   /** Open calls only: the venue's event the call looks for artists for; null when there is none. */
   eventId: string | null;
 };
@@ -116,13 +122,19 @@ export function cleanVenuePost(
     return { ok: false, error: "Check the link: it doesn't look like a web address." };
   }
 
+  // Events are filed under one of the existing search categories.
+  const category = input.kind === "event" ? String(input.category ?? "") : null;
+  if (category !== null && !CATEGORIES.includes(category)) {
+    return { ok: false, error: "Pick a category." };
+  }
+
   // Only open calls are connected to an event. That the event is the venue's own is checked when saving.
   const eventId =
     input.kind === "open_call" && typeof input.eventId === "string" && POST_ID_PATTERN.test(input.eventId)
       ? input.eventId
       : null;
 
-  return { ok: true, post: { kind: input.kind, title, description, date, link, eventId } };
+  return { ok: true, post: { kind: input.kind, title, description, date, link, category, eventId } };
 }
 
 /** "YYYY-MM-DD" shown as e.g. "Sat, 15 Nov 2026". */

@@ -13,6 +13,7 @@ import {
   Section,
   prepareImage,
 } from "@/components/UserDashboard";
+import { CATEGORIES } from "@/lib/events";
 import { ACCENT_FILL_CLASS } from "@/lib/styles";
 import {
   POST_DESCRIPTION_MAX,
@@ -29,7 +30,7 @@ import {
 } from "@/lib/venue-posts";
 import { addVenuePost, deleteVenuePost } from "@/lib/venue-posts-actions";
 
-const EMPTY_FORM = { title: "", description: "", date: "", link: "", eventId: "" };
+const EMPTY_FORM = { title: "", description: "", date: "", link: "", eventId: "", category: "" };
 
 const NO_EVENTS: VenuePost[] = [];
 
@@ -154,6 +155,12 @@ export default function VenuePostsSection({
                 >
                   {post.description}
                 </p>
+                {post.category && (
+                  <p className="mt-2 text-sm">
+                    <span className="text-muted-foreground">Category:</span>{" "}
+                    <span className="font-medium">{post.category}</span>
+                  </p>
+                )}
                 {eventTitle(post.eventId) && (
                   <p className="mt-2 text-sm">
                     <span className="text-muted-foreground">For the event:</span>{" "}
@@ -248,6 +255,26 @@ export default function VenuePostsSection({
                 <XIcon className="size-4" />
               </button>
             </div>
+          </div>
+        )}
+        {kind === "event" && (
+          <div>
+            <label htmlFor={id("category")} className="text-sm text-muted-foreground">
+              Category. People find the event under it in the search and on the map.
+            </label>
+            <select
+              id={id("category")}
+              value={form.category}
+              onChange={(e) => setField("category", e.target.value)}
+              className={`${FIELD_CLASS} h-11 rounded-full`}
+            >
+              <option value="">Pick a category</option>
+              {CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
           </div>
         )}
         {kind === "open_call" && events.length > 0 && (

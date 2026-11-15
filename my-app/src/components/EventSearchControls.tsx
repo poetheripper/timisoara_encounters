@@ -11,6 +11,7 @@ import { profileHref } from "@/lib/accounts";
 import {
   CATEGORIES,
   TIME_FILTERS,
+  allEvents,
   searchEvents,
   type EventItem,
   type TimeFilterId,
@@ -24,8 +25,10 @@ function toggle<T>(list: T[], value: T) {
 /**
  * State for an event search: the search bar, the selected filters and the matching events.
  * Shared by every page that searches events (search page, map page) so they behave the same.
+ *
+ * @param venueEvents The events venues published, loaded by the page; searched with the test events.
  */
-export function useEventSearch() {
+export function useEventSearch(venueEvents: EventItem[]) {
   const [input, setInput] = useState("");
   // The query that was last submitted with Enter; empty until then (or after clearing the bar).
   const [query, setQuery] = useState("");
@@ -36,8 +39,11 @@ export function useEventSearch() {
   // Results exist as soon as there is a submitted query or at least one selected filter; null before that.
   // Memoized so the list keeps its identity between renders while the search is unchanged.
   const results: EventItem[] | null = useMemo(
-    () => (query !== "" || hasFilters ? searchEvents({ query, categories, times }) : null),
-    [query, hasFilters, categories, times],
+    () =>
+      query !== "" || hasFilters
+        ? searchEvents({ query, categories, times }, allEvents(venueEvents))
+        : null,
+    [query, hasFilters, categories, times, venueEvents],
   );
 
   return {

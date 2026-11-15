@@ -23,6 +23,8 @@ export type OpenCall = {
   /** When the venue posted it (ISO timestamp). */
   createdAt: string;
   venue: AccountLink | null;
+  /** The venue's event the call looks for artists for; null when it is not connected to one. */
+  event: { title: string; date: string } | null;
 };
 
 /** The venue's answer to an application. */
@@ -93,7 +95,7 @@ function dayPlus(today: string, days: number) {
 }
 
 /**
- * Text search over the title, description and venue name, narrowed by the deadline filters.
+ * Text search over the title, description, venue name and connected event, narrowed by the deadline filters.
  * Several deadline filters widen the match. `today` is a "YYYY-MM-DD" day.
  */
 export function searchOpenCalls(
@@ -108,7 +110,9 @@ export function searchOpenCalls(
 
   return calls.filter((call) => {
     if (latest !== null && call.date > latest) return false;
-    const haystack = [call.title, call.description, call.venue?.name ?? ""].join(" ").toLowerCase();
+    const haystack = [call.title, call.description, call.venue?.name ?? "", call.event?.title ?? ""]
+      .join(" ")
+      .toLowerCase();
     return words.every((word) => haystack.includes(word));
   });
 }

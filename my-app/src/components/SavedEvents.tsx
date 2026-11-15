@@ -4,7 +4,7 @@ import { useState } from "react";
 import { EventFilterChips } from "@/components/EventSearchControls";
 import SaveEventButton, { useSavedEvents } from "@/components/SaveEventButton";
 import { ErrorText, Section } from "@/components/UserDashboard";
-import { EVENTS, eventBackground, searchEvents, type EventItem, type TimeFilterId } from "@/lib/events";
+import { allEvents, eventBackground, searchEvents, type EventItem, type TimeFilterId } from "@/lib/events";
 import { ACCENT_FILL_CLASS } from "@/lib/styles";
 
 function toggle<T>(list: T[], value: T) {
@@ -42,12 +42,19 @@ function SavedTile({
 }
 
 /** The events the logged-in account saved, with the same filters as the search. */
-export default function SavedEvents({ initial }: { initial: string[] }) {
+export default function SavedEvents({
+  initial,
+  venueEvents,
+}: {
+  initial: string[];
+  /** The events venues published, loaded by the page. */
+  venueEvents: EventItem[];
+}) {
   const saved = useSavedEvents(initial);
   const [categories, setCategories] = useState<string[]>([]);
   const [times, setTimes] = useState<TimeFilterId[]>([]);
 
-  const savedEvents = EVENTS.filter((event) => saved.isSaved(event.id));
+  const savedEvents = allEvents(venueEvents).filter((event) => saved.isSaved(event.id));
   const visibleSaved = searchEvents({ categories, times }, savedEvents);
 
   return (

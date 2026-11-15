@@ -30,7 +30,7 @@ async function OpenCallContent({ params }: { params: Promise<{ id: string }> }) 
   // "Today" changes between requests, so this must not be worked out when the site is built.
   await connection();
 
-  const [account, { call, event, error }] = await Promise.all([currentAccount(), loadOpenCall(id)]);
+  const [account, { call, error }] = await Promise.all([currentAccount(), loadOpenCall(id)]);
   if (error) {
     return (
       <Shell>
@@ -44,6 +44,7 @@ async function OpenCallContent({ params }: { params: Promise<{ id: string }> }) 
   const applied = account?.role === "artist" ? await loadOwnApplications(account.id) : null;
   const labels = VENUE_POST_KINDS.open_call;
   const closed = call.date < todayDay();
+  const event = call.event;
 
   return (
     <Shell>
